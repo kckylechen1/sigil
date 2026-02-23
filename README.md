@@ -107,8 +107,22 @@ Sigil comes with a production-ready Model Context Protocol (MCP) server, perfect
    # Install MCP dependencies
    pip install -r requirements.txt
    ```
-3. **Configure MCP Client**:
-   Point your `mcp_config.json` command to `.venv/bin/python3` running `mcp/server.py`.
+3. **Configure your MCP Client** — paste this into your `mcp_config.json` (Claude Desktop, Cursor, Antigravity, etc.):
+   ```jsonc
+   {
+     "mcpServers": {
+       "memory": {
+         "command": "/path/to/sigil/mcp/.venv/bin/python3",
+         "args": ["/path/to/sigil/mcp/server.py"],
+         "env": {
+           "VOYAGE_API_KEY": "your_voyage_api_key",
+           "SILICONFLOW_API_KEY": "your_siliconflow_api_key",
+           "MEMORY_DB_PATH": "~/.sigil/memory.db"
+         }
+       }
+     }
+   }
+   ```
 
 ### Option B: Using the OpenClaw Extension (Node.js)
 
@@ -122,8 +136,61 @@ Sigil can run as a native OpenClaw extension to manage contextual memory.
    # Build the NAPI-RS binding (.node file)
    npm run build
    ```
-2. **Install to OpenClaw**:
-   Symlink or move the `openclaw` directory to your agent's `local-plugins/extensions/` directory.
+2. **Install to OpenClaw**: symlink into your agent's extensions directory:
+   ```bash
+   ln -s $(pwd) ~/.openclaw/local-plugins/extensions/sigil-memory
+   ```
+3. **Set environment variables** in your shell profile (`.zshrc` / `.bashrc`):
+   ```bash
+   export VOYAGE_API_KEY="your_voyage_api_key"
+   export SILICONFLOW_API_KEY="your_siliconflow_api_key"
+   ```
+
+### Option C: OpenClaw Cron Jobs (Automated Memory Curation)
+
+Once the OpenClaw extension is installed, you can set up scheduled cron jobs to automatically curate, consolidate, and quality-check your agent's memory. Add these to `~/.openclaw/cron/jobs.json`:
+
+<details>
+<summary><b>📋 Example: Daily Memory Consolidation (03:40 AM)</b></summary>
+
+```json
+{
+  "agentId": "ops",
+  "name": "sigil-memory-daily-curation",
+  "enabled": true,
+  "schedule": { "kind": "cron", "expr": "40 3 * * *", "tz": "Asia/Shanghai" },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+    "kind": "agentTurn",
+    "model": "google/gemini-3-flash-preview",
+    "message": "Execute daily memory curation: 1) Search for all memories added today. 2) Identify and merge near-duplicate entries. 3) Extract causal chains (cause→decision→result→impact). 4) Append high-value long-term facts to the consolidated memory store. 5) Output a brief summary: new facts added, causal chains found, conflicts detected."
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>📋 Example: Incremental Memory Check (Every 6 Hours)</b></summary>
+
+```json
+{
+  "agentId": "ops",
+  "name": "sigil-memory-incremental-check",
+  "enabled": true,
+  "schedule": { "kind": "every", "everyMs": 21600000 },
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+    "kind": "agentTurn",
+    "model": "google/gemini-3-flash-preview",
+    "message": "Execute incremental memory quality check: 1) Retrieve memories added in the last 6 hours. 2) Identify causal gaps (results without causes, decisions without rationale). 3) Flag contradictions. 4) Output: new entries count, causal gaps, conflicts, whether human review is needed."
+  }
+}
+```
+
+</details>
 
 ---
 
