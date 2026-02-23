@@ -32,6 +32,15 @@
 - **🧠 3 级上下文加载**：自动提取 `L0`（摘要）、`L1`（概览）和 `L2`（全文），大幅节省 Token 开销。
 - **🔌 零运维负担**：所有数据打包在单一的 SQLite 文件 (`memory.db`) 中，完全内嵌。不需要启动 Redis、Neo4j 或 ChromaDB。
 
+### 🧩 模型栈
+
+| 角色 | 模型 | 选型理由 |
+|------|------|----------|
+| **向量嵌入** | [Voyage-4](https://voyageai.com/) | 1024 维向量，多语言检索顶级水准。注册即送 **2 亿免费 tokens**。 |
+| **重排序** | [Voyage Rerank-2.5](https://voyageai.com/) | 混合召回后的交叉编码器精排。与 Embedding 共用同一个 API Key。 |
+| **事实提取** | [GLM-4-9B](https://cloud.siliconflow.cn/) via SiliconFlow | 结构化事实提取速度最快、准确度最高（横评过 Qwen3-8B、Llama 等）。有免费额度。 |
+| **摘要生成** | GLM-4V-Flash | 超快速 L0 单句摘要生成。 |
+
 ---
 
 ## 🏗️ 架构图

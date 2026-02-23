@@ -32,6 +32,15 @@ Whether you are building a Model Context Protocol (MCP) server or extending an a
 - **🧠 3-Tier Context Loading**: Auto-extracts `L0` (Abstract), `L1` (Overview), and `L2` (Full Text) to save tokens.
 - **🔌 Zero Ops**: Packaged as a single SQLite file (`memory.db`), completely embedded. No Redis, no Neo4j, no ChromaDB required.
 
+### 🧩 Model Stack
+
+| Role | Model | Why |
+|------|-------|-----|
+| **Embedding** | [Voyage-4](https://voyageai.com/) | 1024d vectors, top-tier multilingual retrieval. **200M free tokens** on signup. |
+| **Reranking** | [Voyage Rerank-2.5](https://voyageai.com/) | Cross-encoder precision boost after hybrid recall. Same API key as embedding. |
+| **Extraction** | [GLM-4-9B](https://cloud.siliconflow.cn/) via SiliconFlow | Fastest + most accurate for structured fact extraction (tested against Qwen3-8B, Llama, etc.). Free tier. |
+| **Summarization** | GLM-4V-Flash | Ultra-fast L0 one-sentence abstract generation. |
+
 ---
 
 ## 🏗️ Architecture
