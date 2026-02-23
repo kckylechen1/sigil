@@ -73,7 +73,7 @@ graph TD
 
 ## 🚀 Quick Start
 
-### 🤖 For Your AI Agent
+### 🤖🦞 For Your AI Agent
 
 > **Copy everything below and paste it to your AI agent (Claude, Cursor, Antigravity, etc.):**
 

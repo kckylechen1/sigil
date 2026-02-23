@@ -73,7 +73,7 @@ graph TD
 
 ## 🚀 快速开始
 
-### 🤖 给你的 AI Agent
+### 🤖🦞 给你的 AI Agent
 
 > **把下面这段话整个复制粘贴给你的 AI Agent（Claude / Cursor / Antigravity / OpenClaw 等）：**
 
