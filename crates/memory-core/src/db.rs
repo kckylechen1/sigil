@@ -205,9 +205,14 @@ pub fn upsert(conn: &Connection, entry: &MemoryEntry, vec_available: bool) -> Re
     if let Some(vec) = &entry.vector {
         if vec_available {
             let blob = serialize_f32(vec);
+            // vec0 virtual tables do NOT support ON CONFLICT / UPSERT.
+            // Use DELETE + INSERT (same pattern as FTS sync above).
             conn.execute(
-                "INSERT INTO memories_vec(id, embedding) VALUES (?1, ?2)
-                 ON CONFLICT(id) DO UPDATE SET embedding = excluded.embedding",
+                "DELETE FROM memories_vec WHERE id = ?1",
+                params![entry.id],
+            )?;
+            conn.execute(
+                "INSERT INTO memories_vec(id, embedding) VALUES (?1, ?2)",
                 params![entry.id, blob],
             )?;
         }
