@@ -73,10 +73,46 @@ graph TD
 
 ## 🚀 Quick Start
 
+### 🤖 For Your AI Agent
+
+> **Copy everything below and paste it to your AI agent (Claude, Cursor, Antigravity, etc.):**
+
+```
+I want you to help me set up Sigil — a local-first memory system for AI agents.
+
+1. Clone: git clone https://github.com/kckylechen1/sigil.git && cd sigil
+2. Setup MCP server:
+   cd mcp && python3 -m venv .venv && source .venv/bin/activate
+   cd ../crates/memory-python && pip install maturin && maturin develop --release
+   cd ../../mcp && pip install -r requirements.txt
+3. Configure: Add to my mcp_config.json:
+   {
+     "mcpServers": {
+       "memory": {
+         "command": "<absolute-path-to>/sigil/mcp/.venv/bin/python3",
+         "args": ["<absolute-path-to>/sigil/mcp/server.py"],
+         "env": {
+           "VOYAGE_API_KEY": "<my_key>",
+           "SILICONFLOW_API_KEY": "<my_key>",
+           "MEMORY_DB_PATH": "~/.sigil/memory.db"
+         }
+       }
+     }
+   }
+
+If I don't have API keys yet, help me register:
+- Voyage API (embedding + rerank): https://dash.voyageai.com/ — 200M free tokens, no credit card
+- SiliconFlow (fact extraction): https://cloud.siliconflow.cn/ — free tier available
+```
+
+---
+
+### Manual Setup
+
 First, clone the repository and configure your environment details:
 
 ```bash
-git clone https://github.com/your-org/sigil.git
+git clone https://github.com/kckylechen1/sigil.git
 cd sigil
 cp .env.example .env
 ```

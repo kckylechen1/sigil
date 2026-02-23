@@ -73,10 +73,46 @@ graph TD
 
 ## 🚀 快速开始
 
+### 🤖 给你的 AI Agent
+
+> **把下面这段话整个复制粘贴给你的 AI Agent（Claude / Cursor / Antigravity / OpenClaw 等）：**
+
+```
+帮我安装配置 Sigil —— 一个 AI agent 本地记忆系统。
+
+1. 克隆仓库: git clone https://github.com/kckylechen1/sigil.git && cd sigil
+2. 搭建 MCP server:
+   cd mcp && python3 -m venv .venv && source .venv/bin/activate
+   cd ../crates/memory-python && pip install maturin && maturin develop --release
+   cd ../../mcp && pip install -r requirements.txt
+3. 配置: 在我的 mcp_config.json 里添加:
+   {
+     "mcpServers": {
+       "memory": {
+         "command": "<绝对路径>/sigil/mcp/.venv/bin/python3",
+         "args": ["<绝对路径>/sigil/mcp/server.py"],
+         "env": {
+           "VOYAGE_API_KEY": "<我的key>",
+           "SILICONFLOW_API_KEY": "<我的key>",
+           "MEMORY_DB_PATH": "~/.sigil/memory.db"
+         }
+       }
+     }
+   }
+
+如果我还没有 API Key，帮我注册：
+- Voyage API（向量嵌入+重排）: https://dash.voyageai.com/ — 免费 2 亿 tokens，无需信用卡
+- SiliconFlow（事实提取）: https://cloud.siliconflow.cn/ — 有免费额度
+```
+
+---
+
+### 手动安装
+
 首先，克隆仓库并配置环境变量：
 
 ```bash
-git clone https://github.com/your-org/sigil.git
+git clone https://github.com/kckylechen1/sigil.git
 cd sigil
 cp .env.example .env
 ```
