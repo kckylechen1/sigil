@@ -1,8 +1,7 @@
 <div align="center">
-  <h1>✧ Sigil</h1>
   <p><strong>A Local-First, High-Performance Hybrid Context Database for AI Agents</strong></p>
 
-  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+  [English](README.md) | [简体中文](README.zh-CN.md)
   [![Language: Rust](https://img.shields.io/badge/Language-Rust-orange)](https://rust-lang.org)
   [![Integration: MCP](https://img.shields.io/badge/Integration-MCP_Server-purple)](#)
   [![Integration: OpenClaw](https://img.shields.io/badge/Integration-OpenClaw-cyan)](#)
