@@ -2,6 +2,10 @@
   <h1>✧ Sigil</h1>
   <p><strong>A Local-First, High-Performance Hybrid Context Database for AI Agents</strong></p>
 
+  <div align="center">
+    <img src="assets/banner.png" alt="Sigil Banner" width="800"/>
+  </div>
+
   <p>
     <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
   </p>
