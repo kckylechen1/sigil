@@ -73,7 +73,12 @@ export const memoryHybridBridgePlugin = {
     async function ensureStore(agentId?: string): Promise<MemoryStore> {
       const paths = getResolvedPaths(agentId);
       if (!initStores.has(paths.db)) {
-        initStores.set(paths.db, getStore(paths.db, paths.shadow, api.logger));
+        // C3 fix: don't cache rejected promises — delete on failure so next call retries
+        const promise = getStore(paths.db, paths.shadow, api.logger).catch((err) => {
+          initStores.delete(paths.db);
+          throw err;
+        });
+        initStores.set(paths.db, promise);
       }
       return await initStores.get(paths.db)!;
     }
@@ -257,12 +262,14 @@ export const memoryHybridBridgePlugin = {
       },
     });
 
-    api.on("before_agent_start", async (event: any) => {
+    // C1 fix: accept ctx as 2nd param — agentId lives in ctx, not event
+    api.on("before_agent_start", async (event: any, ctx: any) => {
       const query = event.prompt;
       if (!query || query.length < 5) return;
+      const agentId = ctx?.agentId || "main";
 
       try {
-        const hits = await performFtsSearch(query, (event as any).agentId);
+        const hits = await performFtsSearch(query, agentId);
         // Filter out iMessage conversation chunks — private chats should not leak into agent context
         const filtered = hits.filter(h => h.entry.topic !== "imsg_conversation");
         if (filtered.length === 0) return;
@@ -281,35 +288,45 @@ export const memoryHybridBridgePlugin = {
 
         return { prependContext: injectBlock };
       } catch (err) {
-        api.logger.warn(`memory-hybrid-bridge: recall failed: ${String(err)}`);
+        api.logger.warn(`memory-hybrid-bridge [${agentId}]: recall failed: ${String(err)}`);
       }
     });
 
-    api.on("agent_end", async (event: any) => {
+    // C1 fix: accept ctx as 2nd param — agentId lives in ctx, not event
+    api.on("agent_end", async (event: any, ctx: any) => {
       if (!event.success || !event.messages || event.messages.length === 0) return;
+      const agentId = ctx?.agentId || "main";
 
-      const lastMsg = event.messages.at(-1) as any;
-      const text = String(lastMsg?.content || "");
-      const lower = text.toLowerCase();
-      const triggered = config.captureTriggerKeywords.some((kw: string) =>
-        lower.includes(kw.toLowerCase()),
-      );
+      // W4 fix: extract text from structured content blocks
+      function msgToText(m: any): string {
+        const c = m?.content;
+        if (typeof c === "string") return c;
+        if (Array.isArray(c)) return c.filter((b: any) => b?.type === "text").map((b: any) => b.text || "").join("\n");
+        return String(c || "");
+      }
 
-      if (!triggered && text.length < config.captureMinChars) return;
+      // C2 fix: check ALL recent messages for trigger, not just the last one
+      const recentMsgs = (event.messages as any[]).slice(-6);
+      const fullText = recentMsgs.map(msgToText).join("\n");
+      const lower = fullText.toLowerCase();
 
-      const agentId = (event as any).agentId || "main";
+      // W2 fix: guard captureTriggerKeywords with Array.isArray
+      const keywords = Array.isArray(config.captureTriggerKeywords) ? config.captureTriggerKeywords : [];
+      const triggered = keywords.some((kw: string) => lower.includes(kw.toLowerCase()));
+
+      if (!triggered && fullText.length < config.captureMinChars) return;
+
       try {
-        const { shadow, audit } = getResolvedPaths(agentId);
+        const { audit } = getResolvedPaths(agentId);
 
-        const windowText = event.messages
-          .slice(-6)
-          .map((m: any, i: number) => `[${i}] ${m.role}: ${String(m.content || "")}`)
+        const windowText = recentMsgs
+          .map((m: any, i: number) => `[${i}] ${m.role}: ${msgToText(m)}`)
           .join("\n\n");
 
         const extracted = await extractMemoryEntry({
           config,
           inputWindowText: windowText,
-          sourceRefId: (event as any).id || `s_${Date.now()}`,
+          sourceRefId: ctx?.sessionKey || `s_${Date.now()}`,
           agentId,
           logger: api.logger,
         });
@@ -341,17 +358,21 @@ export const memoryHybridBridgePlugin = {
               api.logger.info(`memory-hybrid-bridge [${agentId}]: merging with ${top.entry.id} (sim=${top.similarity.toFixed(3)})`);
               const merged = await mergeMemoryEntries({ config, existing: top.entry, incoming: extracted, logger: api.logger });
               if (merged) {
-                // Re-embed the merged text
                 const mergedVec = await getEmbedding({ config, text: merged.text, logger: api.logger });
                 if (mergedVec) merged.vector = mergedVec;
                 store.upsert(merged);
-                await appendAuditLog(audit, {
-                  action: "merge",
-                  entry_id: merged.id,
-                  merged_with: extracted.id,
-                  similarity: top.similarity,
-                  agent: agentId,
-                });
+                // W5 fix: audit-log in separate try/catch
+                try {
+                  await appendAuditLog(audit, {
+                    action: "merge",
+                    entry_id: merged.id,
+                    merged_with: extracted.id,
+                    similarity: top.similarity,
+                    agent: agentId,
+                  });
+                } catch (auditErr) {
+                  api.logger.warn(`memory-hybrid-bridge [${agentId}]: audit-log write failed: ${String(auditErr)}`);
+                }
                 api.logger.info(`memory-hybrid-bridge [${agentId}]: merged memory: ${merged.id}`);
                 return;
               }
@@ -361,11 +382,16 @@ export const memoryHybridBridgePlugin = {
         }
 
         store.upsert(extracted);
-        await appendAuditLog(audit, {
-          action: "append",
-          entry_id: extracted.id,
-          agent: agentId,
-        });
+        // W5 fix: audit-log in separate try/catch
+        try {
+          await appendAuditLog(audit, {
+            action: "append",
+            entry_id: extracted.id,
+            agent: agentId,
+          });
+        } catch (auditErr) {
+          api.logger.warn(`memory-hybrid-bridge [${agentId}]: audit-log write failed: ${String(auditErr)}`);
+        }
         api.logger.info(
           `memory-hybrid-bridge [${agentId}]: auto-captured new memory: ${extracted.id}`,
         );

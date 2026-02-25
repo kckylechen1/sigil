@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext index.ts config.ts scorer.ts extractor.ts"
   },
   "dependencies": {
-    "@memory-core/node": "file:../../../../.gemini/antigravity/scratch/memory-core-rs/crates/memory-node",
+    "@memory-core/node": "file:../../crates/memory-node",
     "@sinclair/typebox": "^0.34.48"
   },
   "devDependencies": {

@@ -50,6 +50,7 @@ export type BridgeConfig = {
   topK: number;
   searchReadLimit: number;
   dedupThreshold: number;
+  mergeThreshold: number;
   captureMinChars: number;
   captureTriggerKeywords: string[];
   weights: { semantic: number; fts: number; symbolic: number; decay: number };
@@ -79,7 +80,8 @@ export const defaultConfig: BridgeConfig = {
   auditLogPath: path.resolve(workspace, "extensions/memory-hybrid-bridge/data/audit-log.jsonl"),
   topK: 6,
   searchReadLimit: Number(process.env.MEMORY_BRIDGE_SEARCH_READ_LIMIT || 2000),
-  dedupThreshold: Number(process.env.MEMORY_BRIDGE_DEDUP_THRESHOLD || 0.9),
+  dedupThreshold: Number(process.env.MEMORY_BRIDGE_DEDUP_THRESHOLD || 0.95),
+  mergeThreshold: Number(process.env.MEMORY_BRIDGE_MERGE_THRESHOLD || 0.85),
   captureMinChars: Number(process.env.MEMORY_BRIDGE_CAPTURE_MIN_CHARS || 24),
   captureTriggerKeywords: (
     process.env.MEMORY_BRIDGE_CAPTURE_TRIGGERS ||
@@ -101,7 +103,7 @@ export const defaultConfig: BridgeConfig = {
       process.env.SILICONFLOW_API_KEY ||
       process.env.OPENAI_API_KEY ||
       "",
-    model: process.env.MEMORY_BRIDGE_OPENAI_MODEL || "Qwen/Qwen3-8B",
+    model: process.env.MEMORY_BRIDGE_OPENAI_MODEL || "THUDM/GLM-4-9B-0414",
     timeoutMs: Number(process.env.MEMORY_BRIDGE_OPENAI_TIMEOUT_MS || 25000),
   },
   embedding: {

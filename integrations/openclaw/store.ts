@@ -66,6 +66,53 @@ export class MemoryStore {
 
     return { docs, scores };
   }
+
+  /**
+   * Find entries similar to the given vector using Rust's sqlite-vec KNN.
+   * Returns entries with their raw cosine similarity (from the vector channel).
+   * Used for dedup/merge decisions — no FTS or symbolic scoring involved.
+   */
+  findSimilar(queryVec: number[], topK: number = 5): Array<{ entry: MemoryEntry; similarity: number }> {
+    const optionsJson = JSON.stringify({
+      query_vec: queryVec,
+      top_k: topK,
+      record_access: false,
+    });
+    // Empty query string → FTS returns nothing, only vector channel fires
+    const resultsJson = this.store.search("", optionsJson);
+    const results = JSON.parse(resultsJson) as Array<{ entry: MemoryEntry; score: { vector: number; final: number } }>;
+
+    return results
+      .filter(r => r.score.vector > 0)
+      .map(r => ({ entry: r.entry, similarity: r.score.vector }));
+  }
+
+  /**
+   * Delete a memory entry by ID (used after merge to remove the old entry).
+   * Falls back silently if the entry doesn't exist.
+   */
+  delete(id: string) {
+    // Rust binding doesn't expose delete yet; upsert with empty text as tombstone
+    // TODO: add proper delete to Rust binding
+    this.store.upsert(JSON.stringify({
+      id,
+      text: "",
+      summary: "[merged]",
+      keywords: [],
+      timestamp: new Date().toISOString(),
+      location: "",
+      persons: [],
+      entities: [],
+      topic: "",
+      scope: "general",
+      path: "/openclaw/merged",
+      category: "other",
+      importance: 0,
+      access_count: 0,
+      last_access: null,
+      metadata: { source_refs: [], merged: true },
+    }));
+  }
 }
 
 // Auto-migration wrapper

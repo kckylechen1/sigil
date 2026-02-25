@@ -121,10 +121,13 @@ export async function extractMemoryEntry(params: {
       return null;
     }
     const data = (await res.json()) as any;
-    const text = data?.choices?.[0]?.message?.content;
-    if (typeof text !== "string") return null;
+    const rawText = data?.choices?.[0]?.message?.content;
+    if (typeof rawText !== "string") return null;
 
-    const parsed = safeJsonParse<MemoryEntry>(text.trim());
+    // Strip markdown code fences (```json ... ```) that some models emit
+    const text = rawText.trim().replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+
+    const parsed = safeJsonParse<MemoryEntry>(text);
     if (!parsed) return null;
 
     if (!parsed.id) parsed.id = randomUUID();
@@ -185,5 +188,93 @@ export async function getEmbedding(params: {
   } catch (err) {
     logger?.warn(`memory-hybrid-bridge: embedding failed: ${String(err)}`);
     return null;
+  }
+}
+
+// ============================================================================
+// Memory Merge (Semantic Synthesis)
+// ============================================================================
+
+const MERGE_PROMPT = `你是 memory_merger。任务：将两条相关记忆合并为一条更完整的记忆。
+
+规则：
+1) 保留两条记忆中的所有事实，不丢信息
+2) 去除重复表述，合并为简洁的一段话
+3) keywords/persons/entities 取并集
+4) timestamp 用较新的那个
+5) importance 取较大值
+6) 输出严格的单个 JSON 对象（不要 markdown，不要嵌套在 memory_a 里）
+7) 输出字段：id, text, summary, keywords, persons, entities, topic, timestamp, importance`;
+
+export async function mergeMemoryEntries(params: {
+  config: BridgeConfig;
+  existing: MemoryEntry;
+  incoming: MemoryEntry;
+  logger?: { info: (...args: any[]) => void; warn: (...args: any[]) => void };
+}): Promise<MemoryEntry | null> {
+  const { config, existing, incoming, logger } = params;
+  const apiKey = config.extractor.apiKey;
+  if (!apiKey) return null;
+
+  const input = JSON.stringify({
+    memory_a: { id: existing.id, text: existing.text, summary: existing.summary, keywords: existing.keywords, persons: existing.persons, entities: existing.entities, topic: existing.topic, timestamp: existing.timestamp, importance: existing.importance },
+    memory_b: { id: incoming.id, text: incoming.text, summary: incoming.summary, keywords: incoming.keywords, persons: incoming.persons, entities: incoming.entities, topic: incoming.topic, timestamp: incoming.timestamp, importance: incoming.importance },
+  }, null, 2);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.extractor.timeoutMs);
+
+  try {
+    const res = await fetch(`${config.extractor.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.extractor.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: MERGE_PROMPT },
+          { role: "user", content: input },
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      logger?.warn(`memory-hybrid-bridge: merge API returned ${res.status}`);
+      return null;
+    }
+
+    const data = (await res.json()) as any;
+    const rawText = data?.choices?.[0]?.message?.content;
+    if (typeof rawText !== "string") return null;
+
+    const text = rawText.trim().replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    let merged = safeJsonParse<any>(text);
+    if (!merged) return null;
+
+    // Handle nested output like { memory_a: {...} }
+    if (merged.memory_a && typeof merged.memory_a === "object") merged = merged.memory_a;
+
+    // Keep the existing entry's ID so we overwrite it in place
+    merged.id = existing.id;
+    if (!merged.timestamp) merged.timestamp = incoming.timestamp || existing.timestamp;
+    if (!merged.path) merged.path = existing.path;
+    if (!merged.summary) merged.summary = (merged.text || "").substring(0, 100);
+    if (!merged.metadata) merged.metadata = { source_refs: [] };
+
+    // Merge source_refs from both entries
+    const existingRefs = existing.metadata?.source_refs || [];
+    const incomingRefs = incoming.metadata?.source_refs || [];
+    merged.metadata.source_refs = [...existingRefs, ...incomingRefs];
+
+    return merged;
+  } catch (err) {
+    logger?.warn(`memory-hybrid-bridge: merge failed: ${String(err)}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
