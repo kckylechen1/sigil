@@ -20,6 +20,23 @@
 
 ---
 
+## 🏃 快速运行记忆提取评测
+
+```bash
+# 进入评测脚本目录
+cd /Users/kckylechen/Desktop/Sigil/integrations/openclaw
+
+# 确保 SILICONFLOW_API_KEY 已设置
+export SILICONFLOW_API_KEY='你的API密钥'
+
+# 运行评测 (对比 Qwen3-8B vs GLM-4-9B)
+npx tsx benchmark_extraction.ts
+
+# 评测结果将保存到: benchmark_extraction_result.json
+```
+
+---
+
 **Sigil**（魔法刻印/符文）是一个专门为 AI Agent 设计的内嵌式、统一上下文与记忆管理系统。它摒弃了脆弱的扁平化记忆结构，转而采用由高度优化的 Rust 代码支撑的**层次化、类似文件系统的管理范式**。
 
 无论你是构建 Model Context Protocol (MCP) 服务器，还是扩展像 OpenClaw 这样的智能体框架，Sigil 都能提供亚毫秒级、多模态语义检索能力，且**零外部数据库依赖**。

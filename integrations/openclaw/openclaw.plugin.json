@@ -2,7 +2,7 @@
   "id": "memory-hybrid-bridge",
   "name": "Memory Hybrid Bridge",
   "description": "Advanced structured memory with LLM extraction and hybrid retrieval",
-  "kind": "lifecycle",
+  "kind": "memory",
   "entry": "./index.js",
   "configSchema": {
     "type": "object",

@@ -1,13 +1,13 @@
-import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Type } from "@sinclair/typebox";
 // @ts-ignore
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { bridgeConfigSchema, type BridgeConfig, type MemoryEntry } from "./config.js";
-import { extractMemoryEntry, getEmbedding, validateMemoryEntry } from "./extractor.js";
-import { cosineSimilarity } from "./scorer.js";
+import { bridgeConfigSchema, type MemoryEntry } from "./config.js";
+import { extractMemoryEntry, getEmbedding, mergeMemoryEntries } from "./extractor.js";
 import { getStore, MemoryStore } from "./store.js";
+// @ts-ignore — reranker is plain JS
+import { rerank } from "./reranker.js";
 
 // ============================================================================
 // Internal Helpers
@@ -31,28 +31,6 @@ async function appendAuditLog(
   await fs.appendFile(auditLogPath, `${JSON.stringify(line)}\n`, "utf8");
 }
 
-// Removed raw JSONL reading function readShadowEntries. It is handled by SQLite now.
-
-function isDuplicateEntry(
-  candidate: MemoryEntry,
-  existing: MemoryEntry[],
-  threshold: number,
-): boolean {
-  if (candidate.vector && candidate.vector.length > 0) {
-    for (const e of existing) {
-      if (e.vector && e.vector.length === candidate.vector.length) {
-        if (cosineSimilarity(candidate.vector, e.vector) >= threshold) return true;
-      }
-    }
-  }
-  const cText = candidate.text.toLowerCase();
-  for (const e of existing) {
-    const eText = e.text.toLowerCase();
-    if (eText.includes(cText) || cText.includes(eText)) return true;
-  }
-  return false;
-}
-
 // ============================================================================
 // Plugin Definition
 // ============================================================================
@@ -60,6 +38,7 @@ function isDuplicateEntry(
 export const memoryHybridBridgePlugin = {
   id: "memory-hybrid-bridge",
   name: "Memory Hybrid Bridge",
+  kind: "memory" as const,
   description:
     "Advanced structured memory with LLM extraction and hybrid retrieval (vector/lexical/symbolic)",
 
@@ -102,14 +81,39 @@ export const memoryHybridBridgePlugin = {
     api.logger.info(`memory-hybrid-bridge: registered (dynamic agent-scoping enabled)`);
 
     // --- Search Logic ---
+    // Full hybrid search (FTS + Vec) — calls Voyage API for query embedding.
+    // Used by user-initiated tool calls (memory_search, memory_hybrid_search).
     async function performSearch(query: string, agentId?: string, searchTopK?: number) {
       const store = await ensureStore(agentId);
       const topK = searchTopK ?? config.topK;
       const queryVector = await getEmbedding({ config, text: query, logger: api.logger });
 
+      // Pull more candidates for reranking (3× topK), then rerank down to topK
+      const candidates = topK * 3;
       const { docs, scores } = store.search(
         query,
         queryVector,
+        {
+          top_k: candidates,
+          weights: config.weights
+        }
+      );
+
+      const hybridResults = docs.map((doc) => ({ final_score: scores[doc.id] ?? 0, entry: doc }));
+
+      // Rerank via Voyage rerank-2.5 (falls back to hybrid order on failure)
+      return rerank({ config, query, results: hybridResults, topK, logger: api.logger });
+    }
+
+    // FTS-only search — zero network calls, used for automatic context injection.
+    // Restores the old architecture's zero-latency search for before_agent_start.
+    async function performFtsSearch(query: string, agentId?: string, searchTopK?: number) {
+      const store = await ensureStore(agentId);
+      const topK = searchTopK ?? config.topK;
+
+      const { docs, scores } = store.search(
+        query,
+        undefined,
         {
           top_k: topK,
           weights: config.weights
@@ -122,8 +126,7 @@ export const memoryHybridBridgePlugin = {
     // ========================================================================
     // Tools — register as memory_search / memory_get so the agent's
     // natural tool calls hit the hybrid shadow store directly.
-    // Requires plugins.slots.memory = "none" in openclaw.json to avoid
-    // conflict with the built-in memory-core plugin.
+    // Requires plugins.slots.memory = "memory-hybrid-bridge" in openclaw.json.
     // ========================================================================
 
     function formatSearchResults(
@@ -259,15 +262,18 @@ export const memoryHybridBridgePlugin = {
       if (!query || query.length < 5) return;
 
       try {
-        const hits = await performSearch(query, (event as any).agentId);
-        if (hits.length === 0) return;
+        const hits = await performFtsSearch(query, (event as any).agentId);
+        // Filter out iMessage conversation chunks — private chats should not leak into agent context
+        const filtered = hits.filter(h => h.entry.topic !== "imsg_conversation");
+        if (filtered.length === 0) return;
 
-        const memoryLines = hits.map((h, i) => {
+        const memoryLines = filtered.map((h, i) => {
           const e = h.entry;
+          // L0 injection: summary + metadata only; use memory_get for full text (L2)
           return [
-            `M-ENTRY #${i + 1} [ID=${e.id}] [Topic=${e.topic}]`,
-            `Fact: ${e.text}`,
-            `Context: ${e.keywords.join(", ")} | ${e.persons.join(", ")}`,
+            `M-ENTRY #${i + 1} [ID=${e.id}] [Topic=${e.topic}] [Score=${h.final_score.toFixed(2)}]`,
+            `Summary: ${e.summary || e.text.substring(0, 80)}`,
+            `Keywords: ${e.keywords.join(", ")} | Persons: ${e.persons.join(", ")}`,
           ].join("\n");
         });
 
@@ -291,8 +297,8 @@ export const memoryHybridBridgePlugin = {
 
       if (!triggered && text.length < config.captureMinChars) return;
 
+      const agentId = (event as any).agentId || "main";
       try {
-        const agentId = (event as any).agentId;
         const { shadow, audit } = getResolvedPaths(agentId);
 
         const windowText = event.messages
@@ -304,7 +310,7 @@ export const memoryHybridBridgePlugin = {
           config,
           inputWindowText: windowText,
           sourceRefId: (event as any).id || `s_${Date.now()}`,
-          agentId: agentId || "main",
+          agentId,
           logger: api.logger,
         });
 
@@ -319,11 +325,39 @@ export const memoryHybridBridgePlugin = {
 
         const store = await ensureStore(agentId);
 
-        // Basic dedup logic
-        const existing = store.getAll(200); // Only check against latest 200 for dedup to be fast
-        if (isDuplicateEntry(extracted, existing, config.dedupThreshold)) {
-          api.logger.info(`memory-hybrid-bridge [${agentId}]: skipping duplicate memory entry`);
-          return;
+        // Dedup + Merge via vector similarity (Semantic Synthesis)
+        // >= dedupThreshold (0.95): exact duplicate, skip
+        // >= mergeThreshold (0.85): related, merge via LLM
+        // < mergeThreshold: new entry, insert directly
+        if (extracted.vector && extracted.vector.length > 0) {
+          const similar = store.findSimilar(extracted.vector, 1);
+          if (similar.length > 0) {
+            const top = similar[0];
+            if (top.similarity >= config.dedupThreshold) {
+              api.logger.info(`memory-hybrid-bridge [${agentId}]: skipping duplicate (sim=${top.similarity.toFixed(3)})`);
+              return;
+            }
+            if (top.similarity >= config.mergeThreshold) {
+              api.logger.info(`memory-hybrid-bridge [${agentId}]: merging with ${top.entry.id} (sim=${top.similarity.toFixed(3)})`);
+              const merged = await mergeMemoryEntries({ config, existing: top.entry, incoming: extracted, logger: api.logger });
+              if (merged) {
+                // Re-embed the merged text
+                const mergedVec = await getEmbedding({ config, text: merged.text, logger: api.logger });
+                if (mergedVec) merged.vector = mergedVec;
+                store.upsert(merged);
+                await appendAuditLog(audit, {
+                  action: "merge",
+                  entry_id: merged.id,
+                  merged_with: extracted.id,
+                  similarity: top.similarity,
+                  agent: agentId,
+                });
+                api.logger.info(`memory-hybrid-bridge [${agentId}]: merged memory: ${merged.id}`);
+                return;
+              }
+              // Merge failed, fall through to insert as new
+            }
+          }
         }
 
         store.upsert(extracted);
@@ -337,7 +371,7 @@ export const memoryHybridBridgePlugin = {
         );
       } catch (err) {
         api.logger.warn(
-          `memory-hybrid-bridge [(event as any).agentId]: auto-capture failed: ${String(err)}`,
+          `memory-hybrid-bridge [${agentId}]: auto-capture failed: ${String(err)}`,
         );
       }
     });

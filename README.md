@@ -20,6 +20,23 @@
 
 ---
 
+## 🏃 快速运行记忆提取评测
+
+```bash
+# 进入评测脚本目录
+cd /Users/kckylechen/Desktop/Sigil/integrations/openclaw
+
+# 确保 SILICONFLOW_API_KEY 已设置
+export SILICONFLOW_API_KEY='你的API密钥'
+
+# 运行评测 (对比 Qwen3-8B vs GLM-4-9B)
+npx tsx benchmark_extraction.ts
+
+# 评测结果将保存到: benchmark_extraction_result.json
+```
+
+---
+
 **Sigil** is an embedded, unified context and memory management system designed specifically for AI Agents. It abandons flaky, flat memory structures in favor of a **hierarchical, file-system-like paradigm** backed by highly optimized Rust code. 
 
 Whether you are building a Model Context Protocol (MCP) server or extending an agent framework like OpenClaw, Sigil provides sub-millisecond, multi-modal semantic retrieval with zero external database dependencies.
