@@ -7,11 +7,13 @@ Tools:
   - search_memory: Hybrid search (vector + FTS5 + recency), supports path filtering
   - get_memory: Get full memory text by ID (L2 layer)
   - list_memories: Browse memory paths hierarchically (like ls)
+  - ingest_event: Enqueue conversation events for async extractor/causal workers
   - extract_facts: Extract facts from text via GLM-5 and save them
   - memory_stats: Get memory database statistics
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -32,6 +34,7 @@ import store
 import embedding
 import extractor
 import reranker
+from event_queue import enqueue, init_event_queue
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger("memory-mcp")
@@ -106,6 +109,35 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="ingest_event",
+            description="Ingest one conversation turn and enqueue async worker tasks.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "conversation_id": {"type": "string", "description": "Conversation/session ID"},
+                    "turn_id": {"type": "string", "description": "Turn ID within conversation"},
+                    "messages": {
+                        "type": "array",
+                        "description": "Turn messages, usually [{role, content}, ...]",
+                        "items": {
+                            "anyOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "role": {"type": "string"},
+                                        "content": {"type": "string"},
+                                    },
+                                    "required": ["content"],
+                                },
+                            ]
+                        },
+                    },
+                },
+                "required": ["conversation_id", "turn_id", "messages"],
+            },
+        ),
+        Tool(
             name="memory_stats",
             description="Get memory database statistics.",
             inputSchema={
@@ -129,6 +161,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return await _list_memories(arguments)
         elif name == "extract_facts":
             return await _extract_facts(arguments)
+        elif name == "ingest_event":
+            return await _ingest_event(arguments)
         elif name == "memory_stats":
             return await _memory_stats()
         else:
@@ -307,6 +341,33 @@ async def _extract_facts(args: dict) -> list[TextContent]:
     return [TextContent(type="text", text="\n".join(summary_lines))]
 
 
+async def _ingest_event(args: dict) -> list[TextContent]:
+    conversation_id = str(args.get("conversation_id", "")).strip()
+    turn_id = str(args.get("turn_id", "")).strip()
+    messages = args.get("messages", [])
+
+    if not conversation_id:
+        return [TextContent(type="text", text="Error: empty conversation_id")]
+    if not turn_id:
+        return [TextContent(type="text", text="Error: empty turn_id")]
+    if not isinstance(messages, list):
+        return [TextContent(type="text", text="Error: messages must be an array")]
+
+    event_id = hashlib.sha256(f"{conversation_id}{turn_id}".encode("utf-8")).hexdigest()
+    payload = {
+        "event_id": event_id,
+        "conversation_id": conversation_id,
+        "turn_id": turn_id,
+        "messages": messages,
+    }
+
+    init_event_queue(store.DB_PATH)
+    enqueue(store.DB_PATH, event_id, "extractor", payload)
+    enqueue(store.DB_PATH, event_id, "causal", payload)
+
+    return [TextContent(type="text", text=json.dumps({"event_id": event_id}, ensure_ascii=False))]
+
+
 async def _memory_stats() -> list[TextContent]:
     conn = store.get_connection()
     try:
@@ -319,6 +380,7 @@ async def _memory_stats() -> list[TextContent]:
 
 async def main():
     logger.info("Starting Antigravity Memory MCP server (v2)...")
+    init_event_queue(store.DB_PATH)
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())
 
