@@ -35,11 +35,13 @@ import embedding
 import extractor
 import reranker
 from event_queue import enqueue, init_event_queue
+from workers.launcher import WorkerLauncher
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger("memory-mcp")
 
 app = Server("antigravity-memory")
+_STORE_CONN = store.get_connection()
 
 
 @app.list_tools()
@@ -190,7 +192,7 @@ async def _save_memory(args: dict) -> list[TextContent]:
     summary = await extractor.generate_summary(text)
     vec = await embedding.embed(text, input_type="document")
     
-    conn = store.get_connection()
+    conn = _STORE_CONN
     try:
         result = store.save_memory(
             conn, text, vec,
@@ -219,7 +221,7 @@ async def _search_memory(args: dict) -> list[TextContent]:
     path_prefix = args.get("path_prefix", "")
     
     vec = await embedding.embed(query, input_type="query")
-    conn = store.get_connection()
+    conn = _STORE_CONN
     try:
         # Pull 2x candidates for reranker
         candidates = store.hybrid_search(conn, vec, query, top_k=top_k * 2, path_prefix=path_prefix)
@@ -245,7 +247,7 @@ async def _get_memory(args: dict) -> list[TextContent]:
     if not id_:
         return [TextContent(type="text", text="Error: empty id")]
 
-    conn = store.get_connection()
+    conn = _STORE_CONN
     try:
         mem = store.get_memory(conn, id_)
         if not mem:
@@ -262,7 +264,7 @@ async def _get_memory(args: dict) -> list[TextContent]:
 async def _list_memories(args: dict) -> list[TextContent]:
     path = args.get("path", "/")
     
-    conn = store.get_connection()
+    conn = _STORE_CONN
     try:
         res = store.list_by_path(conn, path)
         
@@ -307,7 +309,7 @@ async def _extract_facts(args: dict) -> list[TextContent]:
         s = await extractor.generate_summary(t)
         summaries.append(s)
 
-    conn = store.get_connection()
+    conn = _STORE_CONN
     saved, skipped = 0, 0
     try:
         for fact, vec, summ in zip(facts, vectors, summaries):
@@ -369,7 +371,7 @@ async def _ingest_event(args: dict) -> list[TextContent]:
 
 
 async def _memory_stats() -> list[TextContent]:
-    conn = store.get_connection()
+    conn = _STORE_CONN
     try:
         stats = store.get_stats(conn)
         return [TextContent(type="text", text=json.dumps(stats, indent=2, ensure_ascii=False))]
@@ -380,9 +382,14 @@ async def _memory_stats() -> list[TextContent]:
 
 async def main():
     logger.info("Starting Antigravity Memory MCP server (v2)...")
-    init_event_queue(store.DB_PATH)
-    async with stdio_server() as (read_stream, write_stream):
-        await app.run(read_stream, write_stream, app.create_initialization_options())
+    launcher = WorkerLauncher(db_path=store.DB_PATH, conn=_STORE_CONN)
+    launcher.start()
+    try:
+        init_event_queue(store.DB_PATH)
+        async with stdio_server() as (read_stream, write_stream):
+            await app.run(read_stream, write_stream, app.create_initialization_options())
+    finally:
+        await launcher.stop()
 
 
 if __name__ == "__main__":

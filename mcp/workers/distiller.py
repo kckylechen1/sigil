@@ -11,6 +11,7 @@ from typing import Any
 import embedding
 import extractor
 import store
+from memory_core_py import MemoryStore
 
 from .base import BaseWorker
 
@@ -29,8 +30,13 @@ class DistillerWorker(BaseWorker):
     worker_type = "distiller"
     poll_interval = 7200.0
 
-    def __init__(self, db_path: str | None = None, poll_interval: float | None = None) -> None:
-        super().__init__(db_path=db_path, poll_interval=poll_interval)
+    def __init__(
+        self,
+        db_path: str | None = None,
+        poll_interval: float | None = None,
+        conn: MemoryStore | None = None,
+    ) -> None:
+        super().__init__(db_path=db_path, poll_interval=poll_interval, conn=conn)
         self.model = os.environ.get("DISTILLER_MODEL", "THUDM/glm-5")
 
     @staticmethod
@@ -107,7 +113,7 @@ class DistillerWorker(BaseWorker):
         for rule in rules:
             summaries.append(await extractor.generate_summary(rule))
 
-        conn = store.get_connection()
+        conn = self._conn
         for rule_text, vec, summary in zip(rules, vectors, summaries):
             store.save_memory(
                 conn,
