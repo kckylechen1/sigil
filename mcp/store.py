@@ -40,16 +40,26 @@ def save_memory(
     entry_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     
-    # We pass duplicate checking and upsert fully to Rust backend processing
+    # Check for near-duplicate before inserting (cosine >= 0.92 → skip)
     try:
-        # Actually Rust backend doesn't check vector duplication yet 
-        # but this mimics what we used to do or what rust backend would do
-        opts = json.dumps({"top_k": 1, "query_vec": vector})
-        res_str = store.search(text, opts)
+        dedup_opts = json.dumps({
+            "top_k": 1,
+            "query_vec": vector,
+            "weights": {
+                "semantic": 1.0,
+                "fts": 0.0,
+                "symbolic": 0.0,
+                "decay": 0.0,
+            },
+        })
+        res_str = store.search(text, dedup_opts)
         results = json.loads(res_str)
         if results and len(results) > 0:
             if results[0].get("score", {}).get("final", 0) >= 0.92:
                 return None
+    except Exception:
+        # Empty DB or vec0 not ready — skip dedup, proceed to insert
+        pass
             
         me = {
             "id": entry_id,
