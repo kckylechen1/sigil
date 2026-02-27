@@ -170,23 +170,28 @@ fn now_utc_iso() -> String {
 }
 
 #[inline]
-fn normalize_utc_iso(ts: &str) -> String {
+fn normalize_utc_iso(ts: &str) -> Result<String, MemoryError> {
     let raw = ts.trim();
     if raw.is_empty() {
-        return now_utc_iso();
+        return Err(MemoryError::InvalidArg("empty timestamp".to_string()));
     }
 
     if let Ok(dt) = DateTime::parse_from_rfc3339(raw) {
-        return dt
+        return Ok(dt
             .with_timezone(&Utc)
-            .to_rfc3339_opts(SecondsFormat::Millis, true);
+            .to_rfc3339_opts(SecondsFormat::Millis, true));
     }
 
     if let Ok(dt) = raw.parse::<DateTime<Utc>>() {
-        return dt.to_rfc3339_opts(SecondsFormat::Millis, true);
+        return Ok(dt.to_rfc3339_opts(SecondsFormat::Millis, true));
     }
 
-    now_utc_iso()
+    Err(MemoryError::InvalidArg(format!("invalid timestamp format: {}", ts)))
+}
+
+#[inline]
+pub fn normalize_utc_iso_or_now(ts: &str) -> String {
+    normalize_utc_iso(ts).unwrap_or_else(|_| now_utc_iso())
 }
 
 fn row_to_entry(row: &rusqlite::Row<'_>) -> SqlResult<MemoryEntry> {
@@ -227,8 +232,8 @@ pub fn upsert(conn: &Connection, entry: &MemoryEntry, vec_available: bool) -> Re
         return Err(MemoryError::InvalidArg("entry.id must be provided by caller".to_string()));
     }
 
-    let timestamp_utc = normalize_utc_iso(&entry.timestamp);
-    let last_access_utc = entry.last_access.as_deref().map(normalize_utc_iso);
+    let timestamp_utc = normalize_utc_iso(&entry.timestamp)?;
+    let last_access_utc = entry.last_access.as_deref().map(normalize_utc_iso).transpose()?;
     let write_time_utc = now_utc_iso();
 
     let metadata_json = serde_json::to_string(&entry.metadata)?;

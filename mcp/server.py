@@ -46,6 +46,93 @@ app = Server("antigravity-memory")
 _STORE_CONN = store.get_connection()
 
 
+def _validate_args(tool_name: str, args: dict | None) -> dict:
+    """Validate MCP tool arguments with lightweight schema checks."""
+    if args is None:
+        args = {}
+    if not isinstance(args, dict):
+        raise ValueError(f"invalid arguments for {tool_name}: body must be a JSON object")
+
+    errors: list[str] = []
+
+    def _require_str(field: str) -> None:
+        if field not in args:
+            errors.append(f"missing required field '{field}'")
+            return
+        value = args.get(field)
+        if not isinstance(value, str):
+            errors.append(f"'{field}' must be a string")
+            return
+        if not value.strip():
+            errors.append(f"'{field}' must be a non-empty string")
+
+    def _optional_str(field: str) -> None:
+        if field in args and not isinstance(args.get(field), str):
+            errors.append(f"'{field}' must be a string")
+
+    def _optional_int(field: str, min_value: int | None = None) -> None:
+        if field not in args:
+            return
+        value = args.get(field)
+        if not isinstance(value, int) or isinstance(value, bool):
+            errors.append(f"'{field}' must be an integer")
+            return
+        if min_value is not None and value < min_value:
+            op = ">=" if min_value == 0 else ">"
+            bound = min_value if min_value == 0 else min_value - 1
+            errors.append(f"'{field}' must be {op} {bound}")
+
+    def _optional_number_range(field: str, low: float, high: float) -> None:
+        if field not in args:
+            return
+        value = args.get(field)
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            errors.append(f"'{field}' must be a number")
+            return
+        fv = float(value)
+        if fv < low or fv > high:
+            errors.append(f"'{field}' must be between {low} and {high}")
+
+    if tool_name == "save_memory":
+        _require_str("text")
+        _optional_str("path")
+        _optional_str("topic")
+        _optional_str("scope")
+        _optional_number_range("importance", 0.0, 1.0)
+        if "keywords" in args:
+            keywords = args.get("keywords")
+            if not isinstance(keywords, list):
+                errors.append("'keywords' must be an array of strings")
+            elif any(not isinstance(k, str) for k in keywords):
+                errors.append("'keywords' must contain only strings")
+    elif tool_name == "search_memory":
+        _require_str("query")
+        _optional_int("top_k", min_value=1)
+        _optional_str("path_prefix")
+    elif tool_name in {"get_memory", "delete_memory"}:
+        _require_str("id")
+    elif tool_name == "list_memories":
+        _optional_str("path")
+        _optional_int("offset", min_value=0)
+        _optional_int("limit", min_value=1)
+    elif tool_name == "extract_facts":
+        _require_str("text")
+        _optional_str("source")
+    elif tool_name == "ingest_event":
+        _require_str("conversation_id")
+        _require_str("turn_id")
+        if "messages" not in args:
+            errors.append("missing required field 'messages'")
+        elif not isinstance(args.get("messages"), list):
+            errors.append("'messages' must be an array")
+    elif tool_name == "get_pipeline_status":
+        _optional_int("period_hours", min_value=1)
+
+    if errors:
+        raise ValueError(f"invalid arguments for {tool_name}: {'; '.join(errors)}")
+    return args
+
+
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     return [
@@ -96,6 +183,8 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "The path directory to list, e.g. / or /project", "default": "/"},
+                    "offset": {"type": "integer", "description": "Offset for pagination", "default": 0, "minimum": 0},
+                    "limit": {"type": "integer", "description": "Maximum results for pagination", "default": 100, "minimum": 1},
                 },
                 "required": [],
             },
@@ -163,26 +252,38 @@ async def list_tools() -> list[Tool]:
 
 
 @app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+async def call_tool(name: str, arguments: dict | None) -> list[TextContent]:
     try:
+        if name not in {
+            "save_memory",
+            "search_memory",
+            "get_memory",
+            "list_memories",
+            "extract_facts",
+            "ingest_event",
+            "memory_stats",
+            "get_pipeline_status",
+        }:
+            return [TextContent(type="text", text=f"Unknown tool: {name}")]
+
+        validated_args = _validate_args(name, arguments)
+
         if name == "save_memory":
-            return await _save_memory(arguments)
+            return await _save_memory(validated_args)
         elif name == "search_memory":
-            return await _search_memory(arguments)
+            return await _search_memory(validated_args)
         elif name == "get_memory":
-            return await _get_memory(arguments)
+            return await _get_memory(validated_args)
         elif name == "list_memories":
-            return await _list_memories(arguments)
+            return await _list_memories(validated_args)
         elif name == "extract_facts":
-            return await _extract_facts(arguments)
+            return await _extract_facts(validated_args)
         elif name == "ingest_event":
-            return await _ingest_event(arguments)
+            return await _ingest_event(validated_args)
         elif name == "memory_stats":
             return await _memory_stats()
         elif name == "get_pipeline_status":
-            return await _get_pipeline_status(arguments)
-        else:
-            return [TextContent(type="text", text=f"Unknown tool: {name}")]
+            return await _get_pipeline_status(validated_args)
     except Exception as e:
         logger.exception(f"Error in {name}")
         return [TextContent(type="text", text=f"Error: {e}")]

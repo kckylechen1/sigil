@@ -249,51 +249,50 @@ def list_by_path(
     limit: int = 5000,
 ) -> dict:
     """List sub-paths and memories immediately under a given path."""
-    if not path_prefix.startswith('/'):
-        path_prefix = '/' + path_prefix
-        
-    query_prefix = path_prefix
-    if not query_prefix.endswith('/'):
-        query_prefix += '/'
+    normalized_path = (path_prefix or "").strip() or "/"
+    if not normalized_path.startswith('/'):
+        normalized_path = '/' + normalized_path
+    if len(normalized_path) > 1:
+        normalized_path = normalized_path.rstrip('/')
+
+    child_prefix = "/" if normalized_path == "/" else f"{normalized_path}/"
 
     try:
-        # Push down path filter to Rust SQL query (no full table scan).
-        res_str = store.list_by_path(path_prefix, limit, include_archived)
-        all_entries = json.loads(res_str)
-        
+        entries = json.loads(store.list_by_path(normalized_path, limit, include_archived))
+
         dirs = set()
         memories = []
-        
-        for r in all_entries:
+
+        for r in entries:
             p = r.get("path", "")
-            if p.startswith(query_prefix) or p == path_prefix:
-                if p == path_prefix:
-                    # It's in EXACTLY this directory
-                    summary = r.get("summary") or (r.get("text", "")[:60] + "...")
-                    memories.append({
-                        "id": r["id"],
-                        "path": p,
-                        "summary": summary,
-                        "importance": r.get("importance", 0.7),
-                        "created_at": r.get("timestamp", ""),
-                    })
-                else:
-                    # It's in a sub-directory
-                    rel = p[len(query_prefix):]
-                    if '/' in rel:
-                        sub_dir = rel.split('/')[0]
-                        dirs.add(sub_dir)
-                    else:
-                        dirs.add(rel)
-                        
+
+            if p == normalized_path:
+                summary = r.get("summary") or (r.get("text", "")[:60] + "...")
+                memories.append({
+                    "id": r["id"],
+                    "path": p,
+                    "summary": summary,
+                    "importance": r.get("importance", 0.7),
+                    "created_at": r.get("timestamp", ""),
+                })
+                continue
+
+            if not p.startswith(child_prefix):
+                continue
+
+            rel = p[len(child_prefix):]
+            sub_dir = rel.split('/', 1)[0]
+            if sub_dir:
+                dirs.add(sub_dir)
+
         return {
-            "path": path_prefix,
+            "path": normalized_path,
             "directories": sorted(list(dirs)),
             "memories": memories
         }
     except Exception as e:
         print(f"list_by_path failed: {e}")
-        return { "path": path_prefix, "directories": [], "memories": [] }
+        return { "path": normalized_path, "directories": [], "memories": [] }
 
 
 def get_stats(store: MemoryStore, include_archived: bool = False) -> dict:
