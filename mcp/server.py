@@ -10,6 +10,7 @@ Tools:
   - ingest_event: Enqueue conversation events for async extractor/causal workers
   - extract_facts: Extract facts from text via GLM-5 and save them
   - memory_stats: Get memory database statistics
+  - get_pipeline_status: Check async pipeline health and cutover readiness
 """
 
 import asyncio
@@ -35,6 +36,7 @@ import embedding
 import extractor
 import reranker
 from event_queue import enqueue, init_event_queue
+from shadow.consistency_check import build_pipeline_health
 from workers.launcher import WorkerLauncher
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
@@ -147,6 +149,16 @@ async def list_tools() -> list[Tool]:
                 "properties": {},
             },
         ),
+        Tool(
+            name="get_pipeline_status",
+            description="Get async pipeline health and cutover gate status.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "period_hours": {"type": "integer", "description": "Event stats window in hours", "default": 24},
+                },
+            },
+        ),
     ]
 
 
@@ -167,6 +179,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return await _ingest_event(arguments)
         elif name == "memory_stats":
             return await _memory_stats()
+        elif name == "get_pipeline_status":
+            return await _get_pipeline_status(arguments)
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as e:
@@ -377,6 +391,24 @@ async def _memory_stats() -> list[TextContent]:
         return [TextContent(type="text", text=json.dumps(stats, indent=2, ensure_ascii=False))]
     except Exception as e:
         logger.exception("Error in memory_stats")
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+
+async def _get_pipeline_status(args: dict) -> list[TextContent]:
+    raw_period = args.get("period_hours", 24)
+    try:
+        period_hours = int(raw_period)
+    except (TypeError, ValueError):
+        return [TextContent(type="text", text="Error: period_hours must be an integer")]
+
+    if period_hours <= 0:
+        return [TextContent(type="text", text="Error: period_hours must be > 0")]
+
+    try:
+        health = build_pipeline_health(period_hours=period_hours, db_path=store.DB_PATH)
+        return [TextContent(type="text", text=json.dumps(health, indent=2, ensure_ascii=False))]
+    except Exception as e:
+        logger.exception("Error in get_pipeline_status")
         return [TextContent(type="text", text=f"Error: {e}")]
 
 
