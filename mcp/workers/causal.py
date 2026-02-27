@@ -99,7 +99,7 @@ class CausalWorker(BaseWorker):
         for text in correction_texts:
             summaries.append(await extractor.generate_summary(text))
 
-        conn = store.get_connection()
+        conn = self._conn
         for text, vec, summary in zip(correction_texts, vectors, summaries):
             store.save_memory(
                 conn,

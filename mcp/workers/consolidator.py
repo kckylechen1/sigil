@@ -41,7 +41,7 @@ class ConsolidatorWorker(BaseWorker):
         if not memory_id:
             return
 
-        conn = store.get_connection()
+        conn = self._conn
         new_memory = store.get_memory(conn, memory_id, include_archived=False)
         if not new_memory:
             return

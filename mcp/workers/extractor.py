@@ -51,7 +51,7 @@ class ExtractorWorker(BaseWorker):
         for item in texts:
             summaries.append(await extractor.generate_summary(item))
 
-        conn = store.get_connection()
+        conn = self._conn
         for idx, (fact, vec, summary) in enumerate(zip(normalized_facts, vectors, summaries)):
             fact_text = str(fact.get("text", "")).strip()
             if not fact_text:

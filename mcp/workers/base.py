@@ -17,10 +17,12 @@ class BaseWorker:
     worker_type: str = ""
     poll_interval: float = 2.0
 
-    def __init__(self, db_path: str | None = None, poll_interval: float | None = None) -> None:
+    def __init__(self, db_path: str | None = None, poll_interval: float | None = None, conn=None) -> None:
         self.db_path = db_path or store.DB_PATH
         if poll_interval is not None:
             self.poll_interval = poll_interval
+        # Shared MemoryStore connection — avoids sqlite-vec lock conflicts
+        self._conn = conn or store.get_connection()
         init_event_queue(self.db_path)
 
     async def process(self, payload: dict[str, Any]) -> None:
