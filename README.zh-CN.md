@@ -61,7 +61,7 @@ npx tsx benchmark_extraction.ts
 |------|------|----------|
 | **向量嵌入** | [Voyage-4](https://voyageai.com/) | 1024 维向量，多语言检索顶级水准。注册即送 **2 亿免费 tokens**。 |
 | **重排序** | [Voyage Rerank-2.5](https://voyageai.com/) | 混合召回后的交叉编码器精排。与 Embedding 共用同一个 API Key。 |
-| **事实提取** | [GLM-4-9B](https://cloud.siliconflow.cn/i/QwFqsLF1) via SiliconFlow | 结构化事实提取速度最快、准确度最高（横评过 Qwen3-8B、Llama 等）。有免费额度。 |
+| **事实提取** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) via SiliconFlow | 结构化事实与因果关系提取准确度高，指令遵循能力极强。有免费额度。 |
 | **摘要生成** | GLM-4V-Flash | 超快速 L0 单句摘要生成。 |
 
 ---
@@ -168,7 +168,7 @@ cp .env.example .env
 
 请确保在 `.env` 中填入必要的 API 密钥：
 - **Voyage API** (`VOYAGE_API_KEY`)：用于向量嵌入(Embedding)和重排(Rerank)。[点击此处注册](https://dash.voyageai.com/) 即可获得 **2 亿免费 tokens**。
-- **提取 API** (`SILICONFLOW_API_KEY`)：用于事实提取和摘要。经过我们内部的大量横向对比测试，我们强烈建议使用 **GLM-4**（例如通过 SiliconFlow 调用 `THUDM/glm-4-9b-chat`），它在事实提取的速度和准确度上表现最为出色。
+- **提取 API** (`SILICONFLOW_API_KEY`)：用于事实提取和摘要。经过我们内部的大量横向对比测试，我们强烈建议使用 **Qwen3.5-27B**（例如通过 SiliconFlow 调用 `Qwen/Qwen3.5-27B`），它在处理结构化事实与因果关系时的上下文理解和指令遵循能力上表现最为出色。
 
 ### 选项 A：作为 MCP Server 运行 (Python)
 
