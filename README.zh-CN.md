@@ -22,12 +22,12 @@
 ## 📖 目录
 
 - [概览](#-概览)
+- [快速开始: Coding Agents (MCP)](#-快速开始-coding-agents-mcp)
+- [快速开始: OpenClaw 框架](#-快速开始-openclaw-框架)
 - [核心特性](#-核心特性)
 - [因果工作台与记忆关联](#-因果工作台与记忆关联)
 - [系统架构](#-系统架构)
 - [模型栈](#-模型栈)
-- [快速开始: Coding Agents (MCP)](#-快速开始-coding-agents-mcp)
-- [快速开始: OpenClaw 框架](#-快速开始-openclaw-框架)
 - [代码接入与 APIs](#-代码接入与-apis)
 - [环境变量配置](#-环境变量配置)
 - [性能基准](#-性能基准)
@@ -43,6 +43,57 @@
 当前的 AI 记忆模型大多依赖于向量数据库存储扁平化的文本片段。这种设计极易导致 Agent 的上下文视窗膨胀，并在长时间运行中丢失关键的因果和时间联系。
 
 Sigil 引入了由 Rust 高度优化的**层级化、类文件系统管理范式**与**图谱级因果关联**。无论是作为 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 服务器独立运行，还是内嵌于 OpenClaw 等原生框架中，Sigil 均能提供亚毫秒级的多模态混合语义检索，且**无需任何外部独立数据库依赖**。
+
+---
+
+## 🤖 快速开始: Coding Agents (MCP 协议)
+
+对于使用 Claude Desktop, Cursor, 或是 AutoGen 等框架的用户，Sigil 提供了基于模型上下文协议（MCP）的开箱即用支持。
+
+**将以下系统指令输入给你的个人 AI Assistant 进行自动部署：**
+
+```text
+请协助我配置安装 Sigil (MCP 记忆服务器)：
+
+1. 克隆仓库: git clone https://github.com/kckylechen1/sigil.git && cd sigil
+2. 构建服务端与环境:
+   cd mcp && python3 -m venv .venv && source .venv/bin/activate
+   cd ../crates/memory-python && pip install maturin && maturin develop --release
+   cd ../../mcp && pip install -r requirements.txt
+3. 将以下配置追加至 mcp_config.json 配置文件中:
+   {
+     "mcpServers": {
+       "memory": {
+         "command": "<使用绝对路径指向>/sigil/mcp/.venv/bin/python3",
+         "args": ["<使用绝对路径指向>/sigil/mcp/server.py"]
+       }
+     }
+   }
+
+程序将依据主目录的 .env 文件挂载环境变量。
+依赖服务清单：
+- Voyage API (向量与重排): https://dash.voyageai.com/
+- SiliconFlow (结构化抽取): https://cloud.siliconflow.cn/
+```
+
+---
+
+## 🦞 快速开始: OpenClaw 框架
+
+Sigil 支持以外部扩展插件的形式桥接运行于 OpenClaw 内核。
+
+**将以下指令发送至你的 OpenClaw 对话窗交由 Agent 处理：**
+
+```text
+请协助执行自动化安装流，在 OpenClaw 中扩展部署 Sigil 组件。
+
+1. 直接运行部署脚本：
+   bash -c "$(curl -fsSL https://raw.githubusercontent.com/kckylechen1/sigil/main/scripts/install_openclaw_ext.sh)"
+
+2. 此脚本将负责拉取代码与编译原生的 Rust NAPI 库，进行集成验证并在 extensions 库中建立软链接。
+
+3. 执行完成后请打开 `plugins.allow` 参数权限，并将 `plugins.slots.memory` 设置为 `memory-hybrid-bridge`。最后通过 `.env` 追加相关 Token。
+```
 
 ---
 
@@ -138,57 +189,6 @@ graph TD
 | **打分重排 (Reranking)** | [Voyage Rerank-2.5](https://voyageai.com/) | 检索引擎初筛后的深度交叉验证，共用 Voyage 密钥环境。 |
 | **逻辑提取与快摄 (Extraction & Summarization)** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) 分片部署 | 面向高精度 JSON 数据集校验、L0 简要提取提供的强大因果推理能力。 |
 | **全局蒸馏 (Distillation)** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) 分片部署 | 用于梳理高层级跨场景行为图谱及全局规则统一沉淀。 |
-
----
-
-## 🤖 快速开始: Coding Agents (MCP 协议)
-
-对于使用 Claude Desktop, Cursor, 或是 AutoGen 等框架的用户，Sigil 提供了基于模型上下文协议（MCP）的开箱即用支持。
-
-**将以下系统指令输入给你的个人 AI Assistant 进行自动部署：**
-
-```text
-请协助我配置安装 Sigil (MCP 记忆服务器)：
-
-1. 克隆仓库: git clone https://github.com/kckylechen1/sigil.git && cd sigil
-2. 构建服务端与环境:
-   cd mcp && python3 -m venv .venv && source .venv/bin/activate
-   cd ../crates/memory-python && pip install maturin && maturin develop --release
-   cd ../../mcp && pip install -r requirements.txt
-3. 将以下配置追加至 mcp_config.json 配置文件中:
-   {
-     "mcpServers": {
-       "memory": {
-         "command": "<使用绝对路径指向>/sigil/mcp/.venv/bin/python3",
-         "args": ["<使用绝对路径指向>/sigil/mcp/server.py"]
-       }
-     }
-   }
-
-程序将依据主目录的 .env 文件挂载环境变量。
-依赖服务清单：
-- Voyage API (向量与重排): https://dash.voyageai.com/
-- SiliconFlow (结构化抽取): https://cloud.siliconflow.cn/
-```
-
----
-
-## 🦞 快速开始: OpenClaw 框架
-
-Sigil 支持以外部扩展插件的形式桥接运行于 OpenClaw 内核。
-
-**将以下指令发送至你的 OpenClaw 对话窗交由 Agent 处理：**
-
-```text
-请协助执行自动化安装流，在 OpenClaw 中扩展部署 Sigil 组件。
-
-1. 直接运行部署脚本：
-   bash -c "$(curl -fsSL https://raw.githubusercontent.com/kckylechen1/sigil/main/scripts/install_openclaw_ext.sh)"
-
-2. 此脚本将负责拉取代码与编译原生的 Rust NAPI 库，进行集成验证并在 extensions 库中建立软链接。
-
-3. 执行完成后请打开 `plugins.allow` 参数权限，并将 `plugins.slots.memory` 设置为 `memory-hybrid-bridge`。最后通过 `.env` 追加相关 Token。
-```
 
 ---
 

@@ -22,12 +22,12 @@
 ## 📖 Table of Contents
 
 - [Overview](#-overview)
+- [Quick Start: Coding Agents (MCP)](#-quick-start-coding-agents-mcp)
+- [Quick Start: Frameworks (OpenClaw)](#-quick-start-frameworks-openclaw)
 - [Key Features](#-key-features)
 - [Causal Worker Pipeline & Memory Relations](#-causal-worker-pipeline--memory-relations)
 - [Architecture](#-architecture)
 - [Model Stack](#-model-stack)
-- [Quick Start: Coding Agents (MCP)](#-quick-start-coding-agents-mcp)
-- [Quick Start: Frameworks (OpenClaw)](#-quick-start-frameworks-openclaw)
 - [Manual Installation & APIs](#-manual-installation--apis)
 - [Environment Configuration](#-environment-configuration)
 - [Benchmarks](#-benchmarks)
@@ -43,6 +43,57 @@
 Standard memory models often rely on flat vector stores, leading to bloated context windows and a loss of temporal and causal relationships. Sigil addresses this by utilizing a **hierarchical, file-system-like paradigm** combined with **graph-based causal relations**, powered by a highly optimized Rust core. 
 
 Whether integrated as a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server or used as a native extension in frameworks like OpenClaw, Sigil delivers sub-millisecond, multi-modal semantic retrieval with **zero external database dependencies**.
+
+---
+
+## 🤖 Quick Start: Coding Agents (MCP)
+
+For environments like Claude Desktop, Cursor, or AutoGen, Sigil operates natively as an MCP server.
+
+**Prompt your Assistant with the following instructions:**
+
+```text
+Please configure the Sigil local memory MCP server:
+
+1. Clone repository: git clone https://github.com/kckylechen1/sigil.git && cd sigil
+2. Initialize environment:
+   cd mcp && python3 -m venv .venv && source .venv/bin/activate
+   cd ../crates/memory-python && pip install maturin && maturin develop --release
+   cd ../../mcp && pip install -r requirements.txt
+3. Append to my mcp_config.json:
+   {
+     "mcpServers": {
+       "memory": {
+         "command": "<absolute-path-to>/sigil/mcp/.venv/bin/python3",
+         "args": ["<absolute-path-to>/sigil/mcp/server.py"]
+       }
+     }
+   }
+
+The server loads API keys automatically from the `.env` file in the project root.
+Required providers:
+- Voyage API (Embedding + Rerank): https://dash.voyageai.com/
+- SiliconFlow (Extraction): https://cloud.siliconflow.cn/
+```
+
+---
+
+## 🦞 Quick Start: Frameworks (OpenClaw)
+
+Sigil can be integrated as a native OpenClaw extension plugin.
+
+**Prompt your OpenClaw IDE Assistant with the following instructions:**
+
+```text
+Please install the Sigil memory extension for OpenClaw:
+
+1. Execute the installation script:
+   bash -c "$(curl -fsSL https://raw.githubusercontent.com/kckylechen1/sigil/main/scripts/install_openclaw_ext.sh)"
+
+2. The script automates cloning, building the Rust NAPI module, compiling the extension, and symlinking to the OpenClaw plugin directory.
+
+3. Enable `memory-hybrid-bridge` in `plugins.allow`, assign `plugins.slots.memory` to `memory-hybrid-bridge`, and configure API keys in `.env`.
+```
 
 ---
 
@@ -138,57 +189,6 @@ The following model stack is optimized to balance latency, quality, and cost for
 | **Reranking** | [Voyage Rerank-2.5](https://voyageai.com/) | Cross-encoder precision boost applied post-retrieval. Shares API key with embedding. |
 | **Extraction & Summarization** | [Qwen3.5-27B](https://cloud.siliconflow.cn/) (SiliconFlow) | High accuracy for structured JSON parsing, causal reasoning, and L0 fast-summarization. |
 | **Distillation** | [Qwen3.5-27B](https://cloud.siliconflow.cn/) (SiliconFlow) | Unified model implementation for periodic global schema and rule derivation. |
-
----
-
-## 🤖 Quick Start: Coding Agents (MCP)
-
-For environments like Claude Desktop, Cursor, or AutoGen, Sigil operates natively as an MCP server.
-
-**Prompt your Assistant with the following instructions:**
-
-```text
-Please configure the Sigil local memory MCP server:
-
-1. Clone repository: git clone https://github.com/kckylechen1/sigil.git && cd sigil
-2. Initialize environment:
-   cd mcp && python3 -m venv .venv && source .venv/bin/activate
-   cd ../crates/memory-python && pip install maturin && maturin develop --release
-   cd ../../mcp && pip install -r requirements.txt
-3. Append to my mcp_config.json:
-   {
-     "mcpServers": {
-       "memory": {
-         "command": "<absolute-path-to>/sigil/mcp/.venv/bin/python3",
-         "args": ["<absolute-path-to>/sigil/mcp/server.py"]
-       }
-     }
-   }
-
-The server loads API keys automatically from the `.env` file in the project root.
-Required providers:
-- Voyage API (Embedding + Rerank): https://dash.voyageai.com/
-- SiliconFlow (Extraction): https://cloud.siliconflow.cn/
-```
-
----
-
-## 🦞 Quick Start: Frameworks (OpenClaw)
-
-Sigil can be integrated as a native OpenClaw extension plugin.
-
-**Prompt your OpenClaw IDE Assistant with the following instructions:**
-
-```text
-Please install the Sigil memory extension for OpenClaw:
-
-1. Execute the installation script:
-   bash -c "$(curl -fsSL https://raw.githubusercontent.com/kckylechen1/sigil/main/scripts/install_openclaw_ext.sh)"
-
-2. The script automates cloning, building the Rust NAPI module, compiling the extension, and symlinking to the OpenClaw plugin directory.
-
-3. Enable `memory-hybrid-bridge` in `plugins.allow`, assign `plugins.slots.memory` to `memory-hybrid-bridge`, and configure API keys in `.env`.
-```
 
 ---
 
