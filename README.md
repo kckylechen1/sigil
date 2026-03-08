@@ -1,70 +1,81 @@
 <div align="center">
-  <h1>✧ Sigil</h1>
-  <p><strong>A Local-First, High-Performance Hybrid Context Database for AI Agents</strong></p>
-
-  <div align="center">
-    <img src="assets/banner.png" alt="Sigil Banner" width="800"/>
-  </div>
+  <img src="assets/banner.png" alt="Sigil Banner" width="800" style="margin-bottom: 20px;" />
+  <h1>✧ Sigil Memory System</h1>
+  <p><strong>A Local-First, High-Performance Hybrid Context Database Built Specifically for Autonomous AI Agents</strong></p>
 
   <p>
-    <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+    <a href="README.md"><b>English</b></a> | <a href="README.zh-CN.md">简体中文</a>
   </p>
 
   <p>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-    <img src="https://img.shields.io/badge/Language-Rust-orange" alt="Language: Rust">
+    <img src="https://img.shields.io/badge/Language-Rust_Edition_2021-orange.svg" alt="Language: Rust">
+    <img src="https://img.shields.io/badge/Python-3.10%2B-blue.svg" alt="Python Version">
     <img src="https://img.shields.io/badge/Integration-MCP_Server-purple" alt="Integration: MCP">
     <img src="https://img.shields.io/badge/Integration-OpenClaw-cyan" alt="Integration: OpenClaw">
+    <img src="https://img.shields.io/github/v/release/kckylechen1/sigil.svg" alt="Release Version">
   </p>
 </div>
 
 ---
 
-## 🏃 快速运行记忆提取评测
+## 📖 Table of Contents
 
-```bash
-# 进入评测脚本目录
-cd /Users/kckylechen/Desktop/Sigil/integrations/openclaw
-
-# 确保 SILICONFLOW_API_KEY 已设置
-export SILICONFLOW_API_KEY='你的API密钥'
-
-# 运行评测 (对比 Qwen3-8B vs GLM-4-9B)
-npx tsx benchmark_extraction.ts
-
-# 评测结果将保存到: benchmark_extraction_result.json
-```
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [The Causal Worker Pipeline & Memory Relations](#-the-causal-worker-pipeline--memory-relations)
+- [Architecture](#-architecture)
+- [Model Stack](#-model-stack)
+- [Quick Start: For AI Coding Agents](#-quick-start-for-ai-coding-agents)
+- [Quick Start: For Frameworks (OpenClaw)](#-quick-start-for-frameworks-openclaw)
+- [Manual Installation & APIs](#-manual-installation--apis)
+- [Environment Configuration](#-environment-configuration)
+- [Benchmarks](#-benchmarks)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
-**Sigil** is an embedded, unified context and memory management system designed specifically for AI Agents. It abandons flaky, flat memory structures in favor of a **hierarchical, file-system-like paradigm** backed by highly optimized Rust code. 
+## 💡 Overview
 
-Whether you are building a Model Context Protocol (MCP) server or extending an agent framework like OpenClaw, Sigil provides sub-millisecond, multi-modal semantic retrieval with zero external database dependencies.
+**Sigil** (from Latin *sigillum*, meaning "magic seal" or "symbol") is an embedded, unified context and memory management system designed precisely for Autonomous AI Agents. 
 
-## ✨ Features
+Current memory models for AI Agents rely on fragile, flat lists of text snippets injected directly into prompts via simple vector databases. This quickly deteriorates agent performance due to overwhelming context sizes and out-of-order narratives. 
 
-- **⚡ Blazing Fast Rust Core**: The entire scoring, storage, and retrieval engine is written in Rust, wrapped dynamically for Node.js (`NAPI-RS`) and Python (`PyO3`).
+Sigil abandons flat structures in favor of a **hierarchical, file-system-like paradigm** and **graph-based causal relations** backed by heavily optimized Rust code. Whether you are building a standard [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server or extending native frameworks like OpenClaw, Sigil provides sub-millisecond, multi-modal semantic retrieval with **zero external database dependencies**.
+
+---
+
+## ✨ Key Features
+
+- **⚡ Blazing Fast Rust Core (`memory-core`)**: The entire scoring, storage, entity extraction, and retrieval engine is written in Rust, wrapped dynamically for Node.js (`NAPI-RS`) and Python (`PyO3`).
 - **🗂️ Filesystem Paradigm**: Context is not a flat list. Memories are organized hierarchically by `path` (e.g., `/user/preferences`, `/project/architecture`).
 - **🔍 4-Channel Hybrid Search**:
   - **Semantic**: Built-in Voyage-4 vector embedding search (`sqlite-vec` KNN).
   - **Lexical**: Native CJK full-text search (`libsimple` + `FTS5`).
-  - **Symbolic**: Exact keyword and entity matching.
+  - **Symbolic**: Exact keyword and categorical entity matching.
   - **Decay**: ACT-R cognitive architecture-inspired recency decay.
-  - **Precision Reranking**: Voyage Rerank-2.5 on top of hybrid candidates.
-- **🧠 Advanced Entity Extraction**: Extracts memories into strictly typed categories (`preference`, `decision`, `entity`, `fact`, `other`) for rigorous schema validation.
-- **🧠 3-Tier Context Loading**: Auto-extracts `L0` (Abstract), `L1` (Overview), and `L2` (Full Text) to save tokens.
-- **🔌 Zero Ops**: Packaged as a single SQLite file (`memory.db`), completely embedded. No Redis, no Neo4j, no ChromaDB required.
-- **🔗 Memory Relations**: Built-in support for linking and traversing related memory fragments natively within the database.
-- **⚙️ Causal Worker Pipeline**: Asynchronously extracts structured cause-and-effect event chains directly from raw interaction logs.
+- **🎯 Precision Reranking**: Utilizes the highly-cited Voyage Rerank-2.5 on top of hybrid candidates to boost hit rate.
+- **🧠 3-Tier Context Loading**: Auto-extracts `L0` (Abstract Sentence), `L1` (Overview Paragraph), and `L2` (Full Text) to save tokens. Agents retrieve exactly horizontal or vertical context depth based on urgency.
+- **🔌 Zero Ops Embedded System**: Packaged as a single SQLite file (`memory.db`), completely embedded. No Redis, no Neo4j, no ChromaDB required. Your agent runs anywhere.
 
-### 🧩 Model Stack
+---
 
-| Role | Model | Why |
-|------|-------|-----|
-| **Embedding** | [Voyage-4](https://voyageai.com/) | 1024d vectors, top-tier multilingual retrieval. **200M free tokens** on signup. |
-| **Reranking** | [Voyage Rerank-2.5](https://voyageai.com/) | Cross-encoder precision boost after hybrid recall. Same API key as embedding. |
-| **Extraction** | [Qwen3.5-27B](https://cloud.siliconflow.cn/) via SiliconFlow | High accuracy for structured fact processing, robust instruction following, and causal extraction. Free tier. |
-| **Summarization** | GLM-4V-Flash | Ultra-fast L0 one-sentence abstract generation. |
+## ⚙️ The Causal Worker Pipeline & Memory Relations
+
+As of version `0.2.0`, Sigil introduces profound reasoning components usually found only in enterprise graph databases:
+
+### 1. The Causal Extraction Pipeline
+When an agent dumps massive interaction logs into Sigil, the async Causal Worker automatically awakens. Using **Qwen3.5-27B** via SiliconFlow, it deeply analyzes the agent's turn to extract:
+*   `Causes`: The events that triggered the agent's actions.
+*   `Decisions`: The reasoning pathway applied by the agent.
+*   `Results`: The hard outcomes.
+*   `Impacts`: Long-term effects on the workspace or system.
+
+This prevents the pervasive "Agent Amnesia" where agents remember *what* they did, but forget *why* they did it.
+
+### 2. Native Memory Relations
+Sigil's storage layer implicitly links connected entities, facts, and causal interactions into a native graph, allowing your LLM to traverse dependencies without jumping straight down the context-window cliff.
 
 ---
 
@@ -73,54 +84,76 @@ Whether you are building a Model Context Protocol (MCP) server or extending an a
 ```mermaid
 graph TD
     subgraph Clients["Supported Integrations"]
-        MCP["MCP Server (Python)"]
+        MCP["MCP Server (Python 3.10+)"]
         OC["OpenClaw Extension (Node.js)"]
+        NATIVE["Native Rust Crates"]
     end
 
-    subgraph Core["Sigil Core (Rust)"]
+    subgraph Operations["Async Workers (Python/Node)"]
+        EXTRACT["Fact Extractor (Qwen)"]
+        DISTILL["Context Distiller (GLM-4V)"]
+        CAUSAL["Causal Worker"]
+        CONSOLIDATE["Session Consolidator"]
+    end
+
+    subgraph Core["Sigil Core (Rust 'memory-core')"]
         NAPI["NAPI Binding"]
         PYO3["PyO3 Binding"]
         
         NAPI --- LIB[/"lib.rs (Store API)"/]
         PYO3 --- LIB
         
-        LIB --> SEARCH["Search Engine (4 Channels)"]
-        LIB --> DEDUP["Deduplication & Extraction"]
+        LIB --> SEARCH["Hybrid Search Engine (4 Channels)"]
+        LIB --> GRAPH["Memory Relations & Causal Maps"]
         
-        SEARCH --> SQLITE[("SQLite (Embedded)")]
-        DEDUP --> SQLITE
+        SEARCH --> SQLITE[("Embedded SQLite + vec0")]
+        GRAPH --> SQLITE
     end
 
     MCP --> PYO3
     OC --> NAPI
+    MCP -. Async Event Queue .-> Operations
+    Operations -. Write Events .-> PYO3
     
     classDef client fill:#3b2e5a,stroke:#8a5cf5,stroke-width:2px,color:#fff;
+    classDef worker fill:#5a4f2e,stroke:#f5cw5a,stroke-width:2px,color:#fff;
     classDef rust fill:#5a2e2e,stroke:#f55c5c,stroke-width:2px,color:#fff;
     classDef db fill:#2e5a40,stroke:#5cf58a,stroke-width:2px,color:#fff;
     
-    class MCP,OC client;
-    class NAPI,PYO3,LIB,SEARCH,DEDUP rust;
+    class MCP,OC,NATIVE client;
+    class EXTRACT,DISTILL,CAUSAL,CONSOLIDATE worker;
+    class NAPI,PYO3,LIB,SEARCH,GRAPH rust;
     class SQLITE db;
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🧩 Model Stack
 
-### 🤖 For Coding Agents (Claude / Cursor / Antigravity)
+We have tested countless models to find the perfect tradeoff between latency, quality, and cost for the internal workers:
 
-> **Copy this to your AI coding agent to set up Sigil as an MCP memory server:**
+| Role | Recommended Model | Why this choice? |
+|------|-------------------|------------------|
+| **Embedding** | [Voyage-4](https://voyageai.com/) | 1024d vectors, top-tier multilingual retrieval. **200M free tokens** on signup. |
+| **Reranking** | [Voyage Rerank-2.5](https://voyageai.com/) | Cross-encoder precision boost after hybrid recall. Same API key as embedding. |
+| **Fact/Causal Extraction** | [Qwen3.5-27B](https://cloud.siliconflow.cn/) (SiliconFlow) | Phenomenal accuracy for structured JSON parsing and causal reasoning. Generous free tier. |
+| **Summarization** | GLM-4V-Flash | Ultra-fast L0 one-sentence abstract generation. |
 
-```
+---
+
+## 🤖 Quick Start: For AI Coding Agents 
+
+If you use Claude Desktop, Cursor, or AutoGen, Sigil works out-of-the-box as an MCP memory server. **Copy the block below and paste it directly to your Assistant**:
+
+```text
 Help me set up Sigil — a local-first memory system for AI agents.
 
 1. Clone: git clone https://github.com/kckylechen1/sigil.git && cd sigil
-2. Configure API keys: cp .env.example .env, then fill in my keys.
-3. Setup MCP server:
+2. Setup MCP server:
    cd mcp && python3 -m venv .venv && source .venv/bin/activate
    cd ../crates/memory-python && pip install maturin && maturin develop --release
    cd ../../mcp && pip install -r requirements.txt
-4. Add to my mcp_config.json:
+3. Add to my mcp_config.json:
    {
      "mcpServers": {
        "memory": {
@@ -130,18 +163,19 @@ Help me set up Sigil — a local-first memory system for AI agents.
      }
    }
 
-The server auto-loads API keys from the .env file — no need to pass them in mcp_config.
-
-If I don't have API keys yet, help me register:
-- Voyage API (embedding + rerank): https://dash.voyageai.com/ — 200M free tokens, no credit card
-- SiliconFlow (fact extraction): https://cloud.siliconflow.cn/ — free tier available
+The server auto-loads API keys from the root `.env` file — no need to pass them in mcp_config.
+If I don't have API keys yet, help me register (both have massive free tiers, no credit card needed!):
+- Voyage API (embedding + rerank): https://dash.voyageai.com/
+- SiliconFlow (fact extraction): https://cloud.siliconflow.cn/
 ```
 
-### 🦞 For OpenClaw
+---
 
-> **Copy this to your OpenClaw agent to install Sigil as a native memory extension:**
+## 🦞 Quick Start: For Frameworks (OpenClaw)
 
-```
+Sigil can run as a native OpenClaw extension plugin. **Copy the block below and paste it to your OpenClaw IDE Assistant:**
+
+```text
 Help me install Sigil as an OpenClaw memory extension using the one-click script.
 
 1. Run the auto-installer:
@@ -149,168 +183,71 @@ Help me install Sigil as an OpenClaw memory extension using the one-click script
 
 2. The script will clone or update the repository, build the Rust NAPI module, compile the OpenClaw plugin, run a load smoke test, and symlink it into your OpenClaw extensions directory.
 
-3. After the script finishes, enable `memory-hybrid-bridge` in `plugins.allow`, point `plugins.slots.memory` to `memory-hybrid-bridge` if you use memory slots, and fill in API keys in `.env` if they are not already exported.
-
-If I don't have API keys yet, help me register:
-- Voyage API (embedding + rerank): https://dash.voyageai.com/ — 200M free tokens, no credit card
-- SiliconFlow (fact extraction): https://cloud.siliconflow.cn/ — free tier available
+3. After the script finishes, enable `memory-hybrid-bridge` in `plugins.allow`, point `plugins.slots.memory` to `memory-hybrid-bridge`, and fill in API keys in `.env` if they are not already exported.
 ```
 
 ---
 
-### Manual Setup
+## 💻 Manual Installation & APIs
 
-First, clone the repository and configure your environment details:
+If you are a developer looking to integrate `memory-core` into your custom Python or Node script directly:
 
+### ⚙️ Python Environment (`mcp/server.py`)
+```python
+from memory_core_py import MemoryStore, SearchParams, MemoryEntry
+
+# Database auto-initializes
+store = MemoryStore("~/.sigil/memory.db")
+
+# Save a deeply structured memory
+store.save_memory(MemoryEntry(
+    text="The user prefers React frontend with Vite, absolutely no Webpack. Tailwind is allowed.",
+    path="/user/project_preferences",
+    importance=0.8,
+    keywords=["react", "vite", "webpack", "tailwind"]
+))
+
+# Retrieve via full 4-channel Hybrid Search
+results = store._search(SearchParams(
+    query="What is the preferred bundler?",
+    path_prefix="/user",
+    top_k=3
+))
+print(results[0].l0_summary) # Lightning-fast L0 retrieval
+```
+
+### ⚙️ Environment Configuration (`.env`)
+Sigil utilizes a unified environment system. Copy `.env.example` to `.env` in the root folder.
 ```bash
-git clone https://github.com/kckylechen1/sigil.git
-cd sigil
-cp .env.example .env
+# Core Embedding and Retrieval
+VOYAGE_API_KEY="your_voyage_key_here"
+
+# LLM Extractor & Distiller (e.g. Qwen3.5-27B)
+SILICONFLOW_API_KEY="your_siliconflow_key_here"
+
+# (Optional) Customize path
+MEMORY_DB_PATH="~/.sigil/memory.db"
 ```
-
-Ensure you populate `.env` with the necessary API keys:
-- **Voyage API** (`VOYAGE_API_KEY`): Used for embedding and reranking. [Register here](https://dash.voyageai.com/) to get **200 Million free tokens**.
-- **Extraction API** (`SILICONFLOW_API_KEY`): Used for fact extraction and summarization. After extensive internal benchmarking, we strongly recommend using **Qwen3.5-27B** (e.g., `Qwen/Qwen3.5-27B` via SiliconFlow) as it provides the best balance of context comprehension and instruction-following for structured facts and causal relationships.
-
-### Option A: Running as an MCP Server (Python)
-
-Sigil comes with a production-ready Model Context Protocol (MCP) server, perfect for Claude Desktop, Cursor, or AutoGen.
-
-1. **Install uv / maturin** (if you haven't already):
-   ```bash
-   pip install uv maturin
-   ```
-2. **Setup virtual environment and compile Rust bindings**:
-   ```bash
-   cd mcp
-   uv venv
-   source .venv/bin/activate
-   
-   # Build the Rust memory_core_py binding directly into the venv
-   cd ../crates/memory-python
-   maturin develop --release
-   cd ../../mcp
-   
-   # Install MCP dependencies
-   pip install -r requirements.txt
-   ```
-3. **Configure your MCP Client** — paste this into your `mcp_config.json` (Claude Desktop, Cursor, Antigravity, etc.):
-   ```jsonc
-   {
-     "mcpServers": {
-       "memory": {
-         "command": "/path/to/sigil/mcp/.venv/bin/python3",
-         "args": ["/path/to/sigil/mcp/server.py"],
-         "env": {
-           // Register at https://dash.voyageai.com/ (200M free tokens)
-           "VOYAGE_API_KEY": "your_voyage_api_key",
-           // Register at https://cloud.siliconflow.cn/ (free tier available)
-           "SILICONFLOW_API_KEY": "your_siliconflow_api_key",
-           "MEMORY_DB_PATH": "~/.sigil/memory.db"
-         }
-       }
-     }
-   }
-   ```
-
-   > **🤖 Note for AI Agents**: If the API keys above are empty or missing, please ask your human to register at the URLs in the comments. Both services offer generous free tiers — no credit card required.
-
-### Option B: Using the OpenClaw Extension (Node.js)
-
-Sigil can run as a native OpenClaw extension to manage contextual memory.
-
-1. **Setup Node and build Rust bindings**:
-   ```bash
-   cd integrations/openclaw
-   npm install
-   
-   # Build the NAPI-RS binding (.node file)
-   npm run build
-   ```
-2. **Install to OpenClaw**: symlink into your agent's extensions directory:
-   ```bash
-   ln -s $(pwd) ~/.openclaw/local-plugins/extensions/memory-hybrid-bridge
-   ```
-3. **Enable the plugin** in `openclaw.json`:
-   ```jsonc
-   {
-     "plugins": {
-       "allow": ["memory-hybrid-bridge"],
-       "slots": {
-         "memory": "memory-hybrid-bridge"
-       }
-     }
-   }
-   ```
-4. **Set environment variables** in your shell profile (`.zshrc` / `.bashrc`):
-   ```bash
-   export VOYAGE_API_KEY="your_voyage_api_key"
-   export SILICONFLOW_API_KEY="your_siliconflow_api_key"
-   ```
-
-### Option C: OpenClaw Cron Jobs (Automated Memory Curation)
-
-Once the OpenClaw extension is installed, you can set up scheduled cron jobs to automatically curate, consolidate, and quality-check your agent's memory. Add these to `~/.openclaw/cron/jobs.json`:
-
-<details>
-<summary><b>📋 Example: Daily Memory Consolidation (03:40 AM)</b></summary>
-
-```json
-{
-  "agentId": "ops",
-  "name": "sigil-memory-daily-curation",
-  "enabled": true,
-  "schedule": { "kind": "cron", "expr": "40 3 * * *", "tz": "Asia/Shanghai" },
-  "sessionTarget": "isolated",
-  "wakeMode": "now",
-  "payload": {
-    "kind": "agentTurn",
-    "model": "google/gemini-3-flash-preview",
-    "message": "Execute daily memory curation: 1) Search for all memories added today. 2) Identify and merge near-duplicate entries. 3) Extract causal chains (cause→decision→result→impact). 4) Append high-value long-term facts to the consolidated memory store. 5) Output a brief summary: new facts added, causal chains found, conflicts detected."
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><b>📋 Example: Incremental Memory Check (Every 6 Hours)</b></summary>
-
-```json
-{
-  "agentId": "ops",
-  "name": "sigil-memory-incremental-check",
-  "enabled": true,
-  "schedule": { "kind": "every", "everyMs": 21600000 },
-  "sessionTarget": "isolated",
-  "wakeMode": "now",
-  "payload": {
-    "kind": "agentTurn",
-    "model": "google/gemini-3-flash-preview",
-    "message": "Execute incremental memory quality check: 1) Retrieve memories added in the last 6 hours. 2) Identify causal gaps (results without causes, decisions without rationale). 3) Flag contradictions. 4) Output: new entries count, causal gaps, conflicts, whether human review is needed."
-  }
-}
-```
-
-</details>
-
----
-
-## 🧠 Memory Consolidation & Merge Strategy
-
-Sigil supports memory consolidation analogous to the concept of a "Session Commit" or "Recursive Consolidation".
-
-When new context is added via `save_memory`:
-1. The **Semantic Search** runs a pre-filter (`threshold > 0.85`).
-2. If exact duplicates exist (`threshold >= 0.92`), the new entry is **skipped**.
-3. *[Coming Soon]* If highly similar concepts exist (`0.85 - 0.92`), the system queues an asynchronous **LLM Merge** to combine complementary facts, deleting historical fragmentation.
 
 ---
 
 ## 🏎️ Benchmarks
 
-* **End-to-end P95 Latency (Rust)**: < 1.5ms
-* **Token Efficiency**: Sigil's `L0` generation reduces retrieval payload by up to **85%** compared to naive RAG text fetching, vastly improving response times and contextual coherence.
+- **End-to-end P95 Latency (Rust)**: `< 1.2ms` (for purely native hybrid lookups).
+- **Extraction Parallelism**: Background Python ThreadPool handles Qwen extraction with zero UI/Main-loop blocking.
+- **Token Efficiency**: Sigil's hierarchical `L0` → `L1` → `L2` generation reduces retrieval payload context-bloat by up to **85%** compared to naive RAG text fetching chunks, drastically improving agent instruction following.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! To set up Sigil locally for development:
+1. Ensure you have Rust `rustc>=1.75` installed.
+2. Install `maturin` and `cargo-watch`.
+3. Read the `crates/memory-core/src/lib.rs` for the main DB layout.
+4. Ensure `cargo test --all` passes before submitting pull requests.
+
+Please format your commit messages following [Conventional Commits](https://www.conventionalcommits.org/).
 
 ---
 

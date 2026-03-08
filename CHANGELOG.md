@@ -2,13 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.0] - 2026-03-08
 
 ### Added
 - **MCP/Workers**: Activated causal worker pipeline for asynchronous extraction of cause-and-effect relationships.
 - **Core**: Refactored `memory_relations` support to allow robust linking of related memory fragments.
+- **Docs**: Added one-click install script for OpenClaw.
+- **Docs**: Added Sigil v2 PRD (architecture specification) for causal pipelines and memory workers.
+- **Async Pipeline**: Phase 2 async event pipeline with 4 memory workers (Extractor, Distiller, CausalWorker, Consolidator).
 
 ### Changed
-- **MCP/Extractor**: Upgraded default fact extraction model to Qwen3.5-27B for significantly better causal relationships and structured fact parsing.
-- **Docs**: Updated the recommended extraction model in `README.zh-CN.md` and `README.md` to Qwen3.5-27B.
-- **Core (Fix)**: Stabilized vector KNN searches and kept auto-capture writable.
+- **MCP/Extractor**: Upgraded default fact extraction model to `Qwen3.5-27B` for significantly better causal relationship tracking and structured fact parsing.
+- **Docs**: Updated the recommended extraction model in `README.zh-CN.md` and `README.md` to `Qwen3.5-27B`.
+
+### Fixed
+- **Core**: Stabilized vector KNN searches and ensured `auto-capture` remains writable.
+- **Core**: Addressed SQLite Upsert limitations by migrating to `DELETE` + `INSERT` for `sqlite-vec` `vec0` virtual tables.
+- **OpenClaw Plugin**: Fixed critical hooks and synced all improvements to the latest agent platform requirements.
+- **OpenClaw Plugin**: Corrected plugin kind to `memory`, removed dead code paths, and added native Voyage reranker support.
+- **OpenClaw Plugin**: Ensure `installer` reliably builds bindings and loads the plugin successfully.
+- **Python MCP**: Resolved code smells during fact extraction and migrations.
+
+## [0.1.0] - 2026-03-05
+
+### Added
+- Initial release of the Sigil Memory System.
+- Blazing Fast Rust Core (`memory-core`) featuring Native CJK FTS5 text search and `sqlite-vec` semantic indexing.
+- 4-Channel Hybrid Search Engine (Semantic, Lexical, Symbolic, Decay).
+- Native Node.js `NAPI-RS` bindings for OpenClaw extension.
+- Native Python `PyO3` bindings targeting MCP server frameworks.
+- Added Dotenv support for graceful API key extraction from project roots.
+- Support for Voyage-4, Voyage Rerank-2.5, and GLM-4 base models.
