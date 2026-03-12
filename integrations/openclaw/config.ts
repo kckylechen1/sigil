@@ -1,4 +1,5 @@
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { Type, type Static } from "@sinclair/typebox";
 
@@ -78,7 +79,9 @@ export const defaultConfig: BridgeConfig = {
   promptPath: workspaceRoot
     ? path.resolve(workspaceRoot, "scripts/memory_builder_prompt.txt")
     : path.resolve(repoRoot, "scripts/memory_builder_prompt.txt"),
-  dbPath: path.resolve(pluginDataDir, "memory.db"),
+  dbPath: process.env.MEMORY_DB_PATH
+    ? path.resolve(process.env.MEMORY_DB_PATH.replace(/^~/, os.homedir()))
+    : path.resolve(pluginDataDir, "memory.db"),
   shadowStorePath: path.resolve(
     pluginDataDir,
     "shadow-store.jsonl",

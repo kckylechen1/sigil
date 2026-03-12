@@ -127,3 +127,6 @@ echo "Need API keys?"
 echo "👉 Voyage API: https://dash.voyageai.com/ (200M free tokens)"
 echo "👉 SiliconFlow: https://cloud.siliconflow.cn/ (Free tier available)"
 echo ""
+
+# 6. Create data directory
+mkdir -p "$(cd "$(dirname "$0")/.." && pwd)/integrations/openclaw/data"
