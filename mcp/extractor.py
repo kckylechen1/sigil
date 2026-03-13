@@ -3,6 +3,7 @@ GLM-5 fact extractor for Antigravity Memory MCP.
 Aligned with OpenClaw memory-hybrid-bridge extraction prompt.
 """
 
+import asyncio
 import os
 import json
 import httpx
@@ -14,6 +15,37 @@ SILICONFLOW_API_KEY = os.environ.get("SILICONFLOW_API_KEY", "") or os.environ.ge
 SILICONFLOW_BASE_URL = os.environ.get("SILICONFLOW_BASE_URL", os.environ.get("EXTRACTOR_BASE_URL", "https://api.siliconflow.cn/v1"))
 SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", os.environ.get("EXTRACTOR_MODEL", "Qwen/Qwen3.5-27B"))
 SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", SILICONFLOW_MODEL)
+_RETRYABLE_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _build_timeout(read_timeout: float) -> httpx.Timeout:
+    return httpx.Timeout(
+        connect=_env_float("SILICONFLOW_CONNECT_TIMEOUT", 10.0),
+        read=read_timeout,
+        write=_env_float("SILICONFLOW_WRITE_TIMEOUT", 30.0),
+        pool=_env_float("SILICONFLOW_POOL_TIMEOUT", 30.0),
+    )
+
 
 EXTRACTION_PROMPT = """你是一个记忆提取代理。从对话/文档中提取值得**长期记忆**的离散事实。
 
@@ -44,27 +76,42 @@ async def _call_llm(
     temperature: float = 0.1,
     max_tokens: int = 4000,
     timeout: float = 120,
+    retries: int | None = None,
+    retry_base_delay: float | None = None,
 ) -> str:
     """Shared LLM caller used by extractors/workers."""
     if not SILICONFLOW_API_KEY:
         raise ValueError("SILICONFLOW_API_KEY not set")
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        r = await client.post(
-            f"{SILICONFLOW_BASE_URL}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {SILICONFLOW_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model or SILICONFLOW_MODEL,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "messages": messages,
-            },
-        )
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+    max_attempts = retries if retries is not None else max(1, _env_int("SILICONFLOW_RETRY_ATTEMPTS", 3))
+    base_delay = retry_base_delay if retry_base_delay is not None else _env_float("SILICONFLOW_RETRY_BASE_DELAY", 2.0)
+    async with httpx.AsyncClient(timeout=_build_timeout(timeout)) as client:
+        for attempt in range(1, max_attempts + 1):
+            try:
+                r = await client.post(
+                    f"{SILICONFLOW_BASE_URL}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {SILICONFLOW_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model or SILICONFLOW_MODEL,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                        "messages": messages,
+                    },
+                )
+                r.raise_for_status()
+                return r.json()["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as exc:
+                code = exc.response.status_code if exc.response else None
+                if code not in _RETRYABLE_STATUS_CODES or attempt >= max_attempts:
+                    raise
+            except (httpx.TimeoutException, httpx.TransportError):
+                if attempt >= max_attempts:
+                    raise
+            await asyncio.sleep(base_delay * (2 ** (attempt - 1)))
+    raise RuntimeError("unreachable")
 
 
 async def extract_facts(text: str) -> list[dict]:
@@ -85,8 +132,10 @@ async def extract_facts(text: str) -> list[dict]:
         ],
         model=SILICONFLOW_MODEL,
         temperature=0.1,
-        max_tokens=4000,
-        timeout=120,
+        max_tokens=max(200, _env_int("EXTRACTOR_MAX_TOKENS", 1200)),
+        timeout=_env_float("EXTRACTOR_TIMEOUT_SECONDS", 300.0),
+        retries=max(1, _env_int("EXTRACTOR_RETRY_ATTEMPTS", 4)),
+        retry_base_delay=_env_float("EXTRACTOR_RETRY_BASE_DELAY", 2.0),
     )
 
     # Parse JSON (handle markdown wrapping)
@@ -130,7 +179,9 @@ async def generate_summary(text: str) -> str:
             model=SUMMARY_MODEL,
             temperature=0.1,
             max_tokens=100,
-            timeout=30,
+            timeout=_env_float("SUMMARY_TIMEOUT_SECONDS", 35.0),
+            retries=max(1, _env_int("SUMMARY_RETRY_ATTEMPTS", 1)),
+            retry_base_delay=_env_float("SUMMARY_RETRY_BASE_DELAY", 1.0),
         )
         return content.strip()
     except Exception:

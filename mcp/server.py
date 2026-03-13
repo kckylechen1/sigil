@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import sys
+import httpx
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -46,6 +47,79 @@ logger = logging.getLogger("memory-mcp")
 
 app = Server("antigravity-memory")
 _STORE_CONN = store.get_connection()
+_RETRYABLE_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+_EMBED_RETRY_ATTEMPTS = max(1, _env_int("EMBED_RETRY_ATTEMPTS", 3))
+_EMBED_RETRY_BASE_DELAY = max(0.1, _env_float("EMBED_RETRY_BASE_DELAY", 1.5))
+_SUMMARY_CONCURRENCY = max(1, _env_int("EXTRACT_FACTS_SUMMARY_CONCURRENCY", 3))
+_SUMMARY_TIMEOUT_SECONDS = max(5.0, _env_float("EXTRACT_FACTS_SUMMARY_TIMEOUT_SECONDS", 45.0))
+
+
+def _is_retriable_http_error(exc: Exception) -> bool:
+    if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code if exc.response else None
+        return code in _RETRYABLE_STATUS_CODES
+    return False
+
+
+def _summary_fallback(text: str) -> str:
+    return text[:80] + "..." if len(text) > 80 else text
+
+
+async def _embed_single_with_retry(text: str) -> list[float]:
+    for attempt in range(1, _EMBED_RETRY_ATTEMPTS + 1):
+        try:
+            return await embedding.embed(text, input_type="document")
+        except Exception as exc:
+            if not _is_retriable_http_error(exc) or attempt >= _EMBED_RETRY_ATTEMPTS:
+                raise
+            await asyncio.sleep(_EMBED_RETRY_BASE_DELAY * (2 ** (attempt - 1)))
+    raise RuntimeError("unreachable")
+
+
+async def _embed_batch_with_retry(texts: list[str]) -> list[list[float]]:
+    for attempt in range(1, _EMBED_RETRY_ATTEMPTS + 1):
+        try:
+            return await embedding.embed_batch(texts, input_type="document")
+        except Exception as exc:
+            if not _is_retriable_http_error(exc):
+                raise
+            if attempt >= _EMBED_RETRY_ATTEMPTS:
+                break
+            await asyncio.sleep(_EMBED_RETRY_BASE_DELAY * (2 ** (attempt - 1)))
+    vectors: list[list[float]] = []
+    for t in texts:
+        vectors.append(await _embed_single_with_retry(t))
+    return vectors
+
+
+async def _generate_summaries(texts: list[str]) -> list[str]:
+    sem = asyncio.Semaphore(_SUMMARY_CONCURRENCY)
+    async def _one(t: str) -> str:
+        async with sem:
+            try:
+                return await asyncio.wait_for(extractor.generate_summary(t), timeout=_SUMMARY_TIMEOUT_SECONDS)
+            except Exception:
+                return _summary_fallback(t)
+    return await asyncio.gather(*(_one(t) for t in texts))
+
 
 
 def _validate_args(tool_name: str, args: dict | None) -> dict:
@@ -288,7 +362,7 @@ async def call_tool(name: str, arguments: dict | None) -> list[TextContent]:
             return await _get_pipeline_status(validated_args)
     except Exception as e:
         logger.exception(f"Error in {name}")
-        return [TextContent(type="text", text=f"Error: {e}")]
+        return [TextContent(type="text", text=f"Error: {type(e).__name__}: {e or 'timeout or empty error'}")]
 
 
 async def _save_memory(args: dict) -> list[TextContent]:
@@ -413,18 +487,23 @@ async def _extract_facts(args: dict) -> list[TextContent]:
     source = args.get("source", "extraction")
 
     # Extract facts via GLM-5
-    facts = await extractor.extract_facts(text)
+    try:
+        facts = await extractor.extract_facts(text)
+    except Exception as e:
+        logger.exception("Error during extraction stage")
+        return [TextContent(type="text", text=f"Error: extraction failed ({type(e).__name__}: {e})")]
+
     if not facts:
         return [TextContent(type="text", text="No facts extracted.")]
 
     # Generate vector + L0 summary for each
     texts = [f["text"] for f in facts]
-    vectors = await embedding.embed_batch(texts, input_type="document")
-    # Quick sequential L0 generation to avoid rate limiting
-    summaries = []
-    for t in texts:
-        s = await extractor.generate_summary(t)
-        summaries.append(s)
+    try:
+        vectors = await _embed_batch_with_retry(texts)
+    except Exception as e:
+        logger.exception("Error during embedding stage")
+        return [TextContent(type="text", text=f"Error: embedding failed ({type(e).__name__}: {e})")]
+    summaries = await _generate_summaries(texts)
 
     conn = _STORE_CONN
     saved, skipped = 0, 0
