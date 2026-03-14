@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/banner.png" alt="Sigil Banner" width="800" style="margin-bottom: 20px;" />
-  <h1>✧ 符文（Sigil）记事</h1>
+  <h1>✧ 藏经阁（Sigil）记事</h1>
   <p><strong>专为自主灵核（AI Agents）所筑之本地首储、凌波疾行之混合识海阵法</strong></p>
 
   <p>
@@ -38,11 +38,11 @@
 
 ## 💡 一、 概览
 
-**符文（Sigil）** 者，乃专为机巧巨构（Autonomous AI Agents）所塑之潜渊识海也。
+**藏经阁（Sigil）** 者，乃专为机巧巨构（Autonomous AI Agents）所塑之潜渊识海也。
 
 今世之造物，多以片语金石（向量数据库）碎藏执念。然此法极易致其神识胀乱（上下文膨胀），久之则前因后果尽皆遗忘。
 
-符文本库弃平铺之法，取其**层峦叠嶂、如藏经阁之规制（层级化文件系统范式）**，辅以**经脉羁绊（图谱级因果关联）**。其底座由玄铁（Rust）百炼而成。不论化作 [MCP](https://modelcontextprotocol.io/) 法器独善其身，亦或寄魂于 OpenClaw 等奇巧宗门，皆可施展须臾即至之多系搜魂（亚毫秒级混合语义检索），且**皆不假外物（无需外部数据库）**。
+**藏经阁** 弃平铺之法，取其**层峦叠嶂、如藏经阁之规制（层级化文件系统范式）**，辅以**经脉羁绊（图谱级因果关联）**。其底座由玄铁（Rust）百炼而成。不论化作 [MCP](https://modelcontextprotocol.io/) 法器独善其身，亦或寄魂于 OpenClaw 等奇巧宗门，皆可施展须臾即至之多系搜魂（亚毫秒级混合语义检索），且**皆不假外物（无需外部数据库）**。
 
 ---
 

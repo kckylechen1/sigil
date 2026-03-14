@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/banner.png" alt="Sigil Banner" width="800" style="margin-bottom: 20px;" />
-  <h1>✧ Sigil 记忆系统</h1>
+  <h1>✧ 藏经阁 (Sigil)</h1>
   <p><strong>专为自主智能体（AI Agents）打造的本地优先、高性能混合上下文数据库</strong></p>
 
   <p>
@@ -38,11 +38,11 @@
 
 ## 💡 概览
 
-**Sigil** 是一个专为全自主智能体（Autonomous AI Agents）设计的嵌入式上下文与记忆管理数据库系统。
+**藏经阁（Sigil）** 是一个专为全自主智能体（Autonomous AI Agents）设计的嵌入式上下文与记忆管理数据库系统。
 
 当前的 AI 记忆模型大多依赖于向量数据库存储扁平化的文本片段。这种设计极易导致 Agent 的上下文视窗膨胀，并在长时间运行中丢失关键的因果和时间联系。
 
-Sigil 引入了由 Rust 高度优化的**层级化、类文件系统管理范式**与**图谱级因果关联**。无论是作为 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 服务器独立运行，还是内嵌于 OpenClaw 等原生框架中，Sigil 均能提供亚毫秒级的多模态混合语义检索，且**无需任何外部独立数据库依赖**。
+**藏经阁** 引入了由 Rust 高度优化的**层级化、类文件系统管理范式**与**图谱级因果关联**。无论是作为 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) 服务器独立运行，还是内嵌于 OpenClaw 等原生框架中，它均能提供亚毫秒级的多模态混合语义检索，且**无需任何外部独立数据库依赖**。
 
 ---
 
