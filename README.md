@@ -101,22 +101,20 @@ Sigil 亦化身为 OpenClaw 气海之元婴法宝。
 
 - **⚡ 玄铁剑心 (`memory-core`)**：计分、储纳、探囊取物等心法尽为 Rust 纯血铸就。辅以内丹于 Node.js (`NAPI-RS`) 与 Python (`PyO3`) 以应变千万。
 - **🗂️ 藏经阁流**：摒弃散沙。以 `path` 路径（如 `/user/preferences`, `/project/architecture`）作阁楼卷宗之分期，互不沾染走火入魔。
-- **🔍 四象绝杀阵（混合搜索引擎）**：
-  - **太阴（语义）**：基于 `sqlite-vec` 与 Voyage-4 之聚类（KNN）。
-  - **太阳（词法）**：由 `libsimple` 借 `FTS5` 成势之中原文字（CJK）索骥全书。
-  - **少阴（真言）**：严密匹配决绝签言。
-  - **少阳（忘机）**：顺应天地盈虚之理（ACT-R，时间衰减惩罚），旧事随风。
-- **🎯 乾坤大挪移（交叉重排）**：四路偏锋夺宝而出后，祭出 Voyage Rerank-2.5 以明察秋毫。
-- **🧠 三花聚顶（自适应上下文）**：录入之时即炼为三转：`L0`（浮光掠影）, `L1`（骨肉梗概）, 及 `L2`（大千界体）。由主将择轻重以借之，免费真元。
-- **🔄 两阶演化（记忆去重）**：首创 `HARD_SKIP` 与 `EVOLVE` 双阶去重，以数学阈值为准，胜于 LLM 判断，免去过妄之弊。
-- **🔌 一气化三清（零部署负担）**：海纳百川，尽归一介微尘 SQLite 血印（`memory.db`）。Redis、Neo4j 乃至 ChromaDB 等异教门派，一概不需。
-- **💫 坚韧不拔（重试机制）**：针对 Siliconflow API 施以指数退避（2s/4s/8s）之法，保网络瞬时故障无碍因果抽取。
+- **🔍 三层分流（多路检索引擎）**：
+  - **太阴（语义向量）**：基于 `sqlite-vec` 与 Voyage-4 直嵌检索。
+  - **太阳（词条倒排）**：由 `libsimple` 借 `FTS5` 成势之中原文字（CJK）索骥全书。
+  - **少阳（忘机衰减）**：顺应天地盈虚之理（ACT-R，时间衰减惩罚），旧事随风。
+- **🔒 千金一诺（强状态隔离）**：引入独立强一致性 `hard_state` 引擎，原子的 KV (Key-Value) 读写独立于向量之外。交易仓位、清单列表等刚性数据永不幻觉。
+- **🧠 三花聚顶（自适应上下文）**：录入之时即炼为 `L0`（浮光掠影）, `L1`（骨肉梗概）, 及 `L2`（大千界体）。
+- **🔄 两阶演化（记忆去重）**：首创 `HARD_SKIP` 与 `EVOLVE` 双阶去重，以数学相似度阈值为准。
+- **🔌 一气化三清（零独立服务）**：整个引擎收敛于单纯的 `memory.db` (SQLite) + 本地推演。不需要独立向量数据库。
 
 ---
 
 ## ⚙️ 五、 因果织机与羁绊拓扑
 
-为求造物道心长存，以免走火入魔，Sigil 独创如下天机：
+为求造物道心长存，以免走火入魔，Sigil 独创如下天机（注：为求极致响应，此系统当前**默认静默**，需配置 `ENABLE_PIPELINE=true` 方可唤醒）：
 
 ### 1. 天理昭昭（因果提取管道）
 当 Agent 施法落局，九霄之上之暗卫（异步工作站）便由 SiliconFlow 请神 **Qwen3.5-27B** 入阵。它将从前尘旧梦中拆解：
@@ -125,10 +123,8 @@ Sigil 亦化身为 OpenClaw 气海之元婴法宝。
 *   `Results`（尘埃）：落花流淌至何方？
 *   `Impacts`（余音）：江湖百年或可有变数？
 
-治 “不记初心症”，知其然，更知其所以然。
-
-### 2. 千丝万缕（原生拓扑）
-底层法器中，蛛丝隐连千条暗线。待大衍模型（LLM）溯流而上之时，无须纵览全界，循藤摸瓜即可。
+### 2. 万法归宗（物理层隔离）
+Causal 与蒸馏所生成的规则，均被物理隔离于独立的 `derived_items` 册中，与承载事实与历史的真空灵界 `memories` 绝对绝缘。以防自动推导结果污染原始识海。
 
 ---
 
@@ -187,10 +183,9 @@ graph TD
 
 | 司职 | 仙班首座 | 荐书 |
 |------|-------------------|------------------|
-| **搜神引（Embedding）** | [Voyage-4](https://voyageai.com/) | 千维道标，八荒九州语皆可探明。 |
-| **点金判（Reranking）** | [Voyage Rerank-2.5](https://voyageai.com/) | 乱花渐欲迷人眼时，一锤定音。与搜神引共符印。 |
-| **抽丝剥茧（抽取）** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) | 断文识字、破空捉影，在硅基流（SiliconFlow）中威震八方，香火充裕。 |
-| **大造化（全局蒸馏）** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) | 以同源之智凝练万里乾坤总纲。 |
+| **搜神引（Embedding）** | [Voyage-4](https://voyageai.com/) | 千维道标，八荒九州语皆可探明。与 Rust 核心直接交汇。 |
+| **抽丝剥茧（抽取）** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) | 断文识字、破空捉影，在硅基流（SiliconFlow）中威震八方。（仅在 `ENABLE_PIPELINE=true` 时启用）|
+| **大造化（全局蒸馏）** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) | 以同源之智凝练万里乾坤总纲。（同上） |
 
 ---
 
@@ -200,28 +195,30 @@ graph TD
 
 ### ⚙️ Python 幻术 (`mcp/server.py` 范例)
 ```python
-from memory_core_py import MemoryStore, SearchParams, MemoryEntry
+from mcp.server.stdio import stdio_server
+# ... (通过 MCP 客户端通信的主入口)
 
-# 初始化持久化存储节点
-store = MemoryStore("~/.sigil/memory.db")
-
-# 写入结构化知识与关系
-store.save_memory(MemoryEntry(
+# 1. 写入结构化软记忆 (Vector + FTS + Time-衰减，异步摘要)
+save_memory(
     text="前端项目强制使用 React 与 Vite 构建，严禁混入 Webpack 相关生态配置。支持 Tailwind。",
     path="/user/project_preferences",
     importance=0.8,
     keywords=["react", "vite", "webpack", "tailwind"]
-))
+)
 
-# 调用原生多路混合检索
-results = store._search(SearchParams(
+# 2. 调用原生多路混合检索
+results = search_memory(
     query="针对当前工程构建工具的禁忌有哪些？",
     path_prefix="/user",
     top_k=3
-))
+)
 
-# 输出提纯后的精简概要
-print(results[0].l0_summary)
+# 3. 强一致性硬状态存储 (0 向量感知，极简 KV 持久化)
+set_state(
+    namespace="trading",
+    key="watchlist",
+    value={"600089": "TBEA", "688256": "Cambricon"}
+)
 ```
 
 ### ⚙️ 九、 天地灵气配置 (`.env`)

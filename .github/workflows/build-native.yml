@@ -1,0 +1,136 @@
+name: Build & Publish Native Module
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+
+    runs-on: ${{ matrix.os }}
+    name: Build - ${{ matrix.target }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (aarch64-linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Install napi-rs CLI
+        run: npm install -g @napi-rs/cli
+
+      - name: Install node deps
+        working-directory: crates/memory-node
+        run: npm install
+
+      - name: Build native module
+        working-directory: crates/memory-node
+        run: napi build --platform --release --cargo-cwd . --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binding-${{ matrix.target }}
+          path: crates/memory-node/*.node
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Publish @memory-core/node to npm
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install napi-rs CLI
+        run: npm install -g @napi-rs/cli
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: crates/memory-node/artifacts
+
+      - name: Move artifacts
+        working-directory: crates/memory-node
+        run: napi artifacts -d artifacts
+
+      - name: Publish
+        working-directory: crates/memory-node
+        run: |
+          napi prepublish -t npm
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  package-plugin:
+    needs: publish
+    runs-on: ubuntu-latest
+    name: Package plugin tarball
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build TypeScript
+        working-directory: integrations/openclaw
+        run: |
+          npm install --ignore-scripts
+          npx tsc -p tsconfig.json
+
+      - name: Create tarball
+        working-directory: integrations/openclaw
+        run: |
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          STAGING=$(mktemp -d)
+          cp -r *.js *.d.ts *.d.ts.map openclaw.plugin.json package.json README.md CHANGELOG.md reranker.js "$STAGING/" 2>/dev/null || true
+          tar -czf "memory-hybrid-bridge-v${VERSION}.tar.gz" -C "$STAGING" .
+          echo "TARBALL=memory-hybrid-bridge-v${VERSION}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: integrations/openclaw/${{ env.TARBALL }}

@@ -263,6 +263,14 @@ export async function mergeMemoryEntries(params: {
     if (!merged.timestamp) merged.timestamp = incoming.timestamp || existing.timestamp;
     if (!merged.path) merged.path = existing.path;
     if (!merged.summary) merged.summary = (merged.text || "").substring(0, 100);
+    if (!merged.scope) merged.scope = existing.scope || "general";
+    if (!merged.category) merged.category = existing.category || "fact";
+    if (!merged.location) merged.location = existing.location || incoming.location || "";
+    if (!Array.isArray(merged.keywords)) merged.keywords = [...new Set([...(existing.keywords || []), ...(incoming.keywords || [])])];
+    if (!Array.isArray(merged.persons)) merged.persons = [...new Set([...(existing.persons || []), ...(incoming.persons || [])])];
+    if (!Array.isArray(merged.entities)) merged.entities = [...new Set([...(existing.entities || []), ...(incoming.entities || [])])];
+    if (merged.access_count === undefined) merged.access_count = (existing.access_count || 0) + (incoming.access_count || 0);
+    if (merged.last_access === undefined) merged.last_access = existing.last_access || incoming.last_access || null;
     if (!merged.metadata) merged.metadata = { source_refs: [] };
 
     // Merge source_refs from both entries

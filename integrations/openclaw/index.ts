@@ -1,12 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Type } from "@sinclair/typebox";
-// @ts-ignore
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { bridgeConfigSchema, pluginDataDir, workspaceRoot, type MemoryEntry } from "./config.js";
 import { extractMemoryEntry, getEmbedding, mergeMemoryEntries } from "./extractor.js";
 import { getStore, MemoryStore } from "./store.js";
-// @ts-ignore — reranker is plain JS
 import { rerank } from "./reranker.js";
 
 // ============================================================================

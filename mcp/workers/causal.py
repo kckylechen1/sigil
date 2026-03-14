@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import embedding
 import extractor
 import store
 
@@ -80,23 +79,18 @@ class CausalWorker(BaseWorker):
         if not correction_texts:
             return
 
-        vectors = await embedding.embed_batch(correction_texts, input_type="document")
         summaries: list[str] = []
         for text in correction_texts:
             summaries.append(await extractor.generate_summary(text))
 
         conn = self._conn
-        for text, vec, summary in zip(correction_texts, vectors, summaries):
-            store.save_memory(
-                conn,
-                text,
-                vec,
+        for text, summary in zip(correction_texts, summaries):
+            store.save_derived(
+                text=text,
                 path="/behavior/corrections",
                 summary=summary,
-                topic="correction",
-                keywords=["correction", "causal"],
-                scope="general",
                 importance=0.9,
                 source="causal",
+                scope="general",
                 metadata={"origin": "causal", "event_id": event_id},
             )

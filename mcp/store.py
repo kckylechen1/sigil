@@ -286,8 +286,9 @@ def hybrid_search(
             })
         return legacy_results
     except Exception as e:
-        print(f"Hybrid search failed: {e}")
-        return []
+        import logging
+        logging.getLogger("sigil-store").exception("Hybrid search failed")
+        raise
 
 
 def list_by_path(
@@ -567,5 +568,320 @@ def merge_memory_with_revision(
     except Exception:
         conn.execute("ROLLBACK")
         raise
+    finally:
+        conn.close()
+
+
+# ── hard_state: deterministic KV store ─────────────────────────────────────────
+# Phase 2: Structured state that should NEVER go through vector search.
+# Schema: (namespace, key) → value_json, with version tracking.
+
+def ensure_hard_state_table(db_path: str | None = None) -> None:
+    """Create hard_state table if it doesn't exist."""
+    conn = _sqlite_connect(db_path)
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS hard_state (
+                namespace        TEXT NOT NULL,
+                key              TEXT NOT NULL,
+                value_json       TEXT NOT NULL DEFAULT '{}',
+                version          INTEGER NOT NULL DEFAULT 1,
+                expires_at       TEXT,
+                created_at       TEXT NOT NULL,
+                updated_at       TEXT NOT NULL,
+                last_modified_by TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (namespace, key)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_hard_state_expires
+            ON hard_state(namespace, expires_at)
+        """)
+    finally:
+        conn.close()
+
+
+def set_state(
+    db_path: str | None = None,
+    namespace: str = "default",
+    key: str = "",
+    value: Any = None,
+    modified_by: str = "",
+) -> dict:
+    """Set a hard state value. INSERT OR UPDATE with version bump."""
+    ensure_hard_state_table(db_path)
+    conn = _sqlite_connect(db_path)
+    now = _utc_now()
+    value_json = json.dumps(value, ensure_ascii=False)
+    try:
+        # Atomic upsert
+        conn.execute(
+            """INSERT INTO hard_state
+               (namespace, key, value_json, version, created_at, updated_at, last_modified_by)
+               VALUES (?, ?, ?, 1, ?, ?, ?)
+               ON CONFLICT(namespace, key) DO UPDATE SET
+               value_json = excluded.value_json,
+               version = hard_state.version + 1,
+               updated_at = excluded.updated_at,
+               last_modified_by = excluded.last_modified_by""",
+            (namespace, key, value_json, now, now, modified_by),
+        )
+        conn.commit()
+        
+        row = conn.execute(
+            "SELECT version FROM hard_state WHERE namespace = ? AND key = ?",
+            (namespace, key),
+        ).fetchone()
+        new_version = row["version"] if row else 1
+        
+        return {
+            "namespace": namespace,
+            "key": key,
+            "version": new_version,
+            "updated_at": now,
+        }
+    finally:
+        conn.close()
+
+
+def get_state(
+    db_path: str | None = None,
+    namespace: str = "default",
+    key: str = "",
+) -> dict | None:
+    """Get a hard state value by namespace+key. Returns None if not found."""
+    ensure_hard_state_table(db_path)
+    conn = _sqlite_connect(db_path)
+    try:
+        row = conn.execute(
+            """SELECT namespace, key, value_json, version, created_at, updated_at, last_modified_by
+               FROM hard_state
+               WHERE namespace = ? AND key = ?""",
+            (namespace, key),
+        ).fetchone()
+        if not row:
+            return None
+        result = dict(row)
+        try:
+            result["value"] = json.loads(result.pop("value_json"))
+        except (json.JSONDecodeError, TypeError):
+            result["value"] = result.pop("value_json")
+        return result
+    finally:
+        conn.close()
+
+
+def list_state(
+    db_path: str | None = None,
+    namespace: str = "",
+) -> list[dict]:
+    """List all keys in a namespace (or all namespaces if empty)."""
+    ensure_hard_state_table(db_path)
+    conn = _sqlite_connect(db_path)
+    try:
+        if namespace:
+            rows = conn.execute(
+                """SELECT namespace, key, version, updated_at
+                   FROM hard_state WHERE namespace = ?
+                   ORDER BY key""",
+                (namespace,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT namespace, key, version, updated_at
+                   FROM hard_state ORDER BY namespace, key""",
+            ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def delete_state(
+    db_path: str | None = None,
+    namespace: str = "default",
+    key: str = "",
+) -> bool:
+    """Delete a hard state entry. Returns True if deleted."""
+    ensure_hard_state_table(db_path)
+    conn = _sqlite_connect(db_path)
+    try:
+        conn.execute(
+            "DELETE FROM hard_state WHERE namespace = ? AND key = ?",
+            (namespace, key),
+        )
+        return conn.total_changes > 0
+    finally:
+        conn.close()
+
+
+# ── derived_items: isolated causal/derived memories ────────────────────────────
+# Phase 3: Causal-inferred data lives in a separate table,
+# never polluting default search_memory results.
+
+def ensure_derived_items_table(db_path: str | None = None) -> None:
+    """Create derived_items table if it doesn't exist."""
+    conn = _sqlite_connect(db_path)
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS derived_items (
+                id           TEXT PRIMARY KEY,
+                path         TEXT NOT NULL DEFAULT '/',
+                summary      TEXT NOT NULL DEFAULT '',
+                text         TEXT NOT NULL DEFAULT '',
+                importance   REAL NOT NULL DEFAULT 0.7,
+                timestamp    TEXT NOT NULL,
+                source       TEXT NOT NULL DEFAULT 'causal',
+                scope        TEXT NOT NULL DEFAULT 'general',
+                metadata     TEXT NOT NULL DEFAULT '{}'
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_derived_items_source
+            ON derived_items(source)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_derived_items_timestamp
+            ON derived_items(timestamp DESC)
+        """)
+    finally:
+        conn.close()
+
+
+def save_derived(
+    text: str,
+    path: str = "/",
+    summary: str = "",
+    importance: float = 0.7,
+    source: str = "causal",
+    scope: str = "general",
+    metadata: dict | None = None,
+    db_path: str | None = None,
+) -> str:
+    """Save derived insight directly to derived_items without vector embedding."""
+    ensure_derived_items_table(db_path)
+    entry_id = str(uuid.uuid4())
+    now = _utc_now()
+    metadata_repr = json.dumps(metadata) if metadata else "{}"
+    
+    conn = _sqlite_connect(db_path)
+    try:
+        conn.execute("""
+            INSERT INTO derived_items (id, path, summary, text, importance, timestamp, source, scope, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (entry_id, path, summary, text, importance, now, source, scope, metadata_repr))
+        conn.commit()
+        return entry_id
+    finally:
+        conn.close()
+
+
+def migrate_causal_to_derived(db_path: str | None = None) -> int:
+    """Move source='causal' records from memories to derived_items. Returns count moved."""
+    ensure_derived_items_table(db_path)
+    conn = _sqlite_connect(db_path)
+    try:
+        rows = conn.execute(
+            """SELECT id, path, summary, text, importance, timestamp, source, scope, metadata
+               FROM memories WHERE source = 'causal'"""
+        ).fetchall()
+
+        if not rows:
+            return 0
+
+        for row in rows:
+            conn.execute(
+                """INSERT OR IGNORE INTO derived_items
+                   (id, path, summary, text, importance, timestamp, source, scope, metadata)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (row["id"], row["path"], row["summary"], row["text"],
+                 row["importance"], row["timestamp"], row["source"],
+                 row["scope"], row["metadata"]),
+            )
+
+        # Clean up vector index (must do this via rowid before memories table is deleted)
+        conn.execute(
+            """DELETE FROM memories_vec WHERE rowid IN (
+                SELECT m.rowid FROM memories m
+                INNER JOIN derived_items d ON m.id = d.id
+            )"""
+        )
+        # Remove migrated records from memories table
+        conn.execute("DELETE FROM memories WHERE source = 'causal'")
+        # Also clean up FTS index
+        conn.execute(
+            """DELETE FROM memories_fts WHERE id IN (
+                SELECT id FROM derived_items
+            )"""
+        )
+        conn.commit()
+        return len(rows)
+    finally:
+        conn.close()
+
+
+def list_derived_by_source(
+    db_path: str | None = None,
+    source: str = "causal",
+    path_prefix: str = "",
+    limit: int = 100,
+) -> list[dict]:
+    ensure_derived_items_table(db_path)
+    conn = _sqlite_connect(db_path)
+    try:
+        rows = conn.execute(
+            """SELECT id, path, summary, text, importance, timestamp, source, scope, metadata
+               FROM derived_items
+               WHERE source = ? AND path LIKE ?
+               ORDER BY timestamp DESC
+               LIMIT ?""",
+            (source, f"{path_prefix}%", limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def count_derived_by_source(
+    db_path: str | None = None,
+    source: str = "causal",
+    path_prefix: str = "",
+) -> int:
+    ensure_derived_items_table(db_path)
+    conn = _sqlite_connect(db_path)
+    try:
+        return conn.execute(
+            """SELECT COUNT(*) FROM derived_items
+               WHERE source = ? AND path LIKE ?""",
+            (source, f"{path_prefix}%"),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def search_derived(
+    db_path: str | None = None,
+    query: str = "",
+    limit: int = 10,
+) -> list[dict]:
+    """Search derived_items by text (simple LIKE query, no vector search)."""
+    ensure_derived_items_table(db_path)
+    conn = _sqlite_connect(db_path)
+    try:
+        if query.strip():
+            rows = conn.execute(
+                """SELECT id, path, summary, text, importance, timestamp, source
+                   FROM derived_items
+                   WHERE text LIKE ? OR summary LIKE ?
+                   ORDER BY timestamp DESC LIMIT ?""",
+                (f"%{query}%", f"%{query}%", limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT id, path, summary, text, importance, timestamp, source
+                   FROM derived_items
+                   ORDER BY timestamp DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()

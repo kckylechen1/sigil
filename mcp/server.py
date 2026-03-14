@@ -36,8 +36,6 @@ from mcp.types import Tool, TextContent
 
 import store
 import embedding
-import extractor
-import reranker
 from event_queue import enqueue, init_event_queue
 from shadow.consistency_check import build_pipeline_health
 from workers.launcher import WorkerLauncher
@@ -47,6 +45,7 @@ logger = logging.getLogger("memory-mcp")
 
 app = Server("antigravity-memory")
 _STORE_CONN = store.get_connection()
+ENABLE_PIPELINE = os.environ.get("ENABLE_PIPELINE", "false").lower() in ("true", "1", "yes")
 _RETRYABLE_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
 
 
@@ -111,6 +110,7 @@ async def _embed_batch_with_retry(texts: list[str]) -> list[list[float]]:
 
 
 async def _generate_summaries(texts: list[str]) -> list[str]:
+    import extractor  # Lazy import: only needed for explicit fact extraction
     sem = asyncio.Semaphore(_SUMMARY_CONCURRENCY)
     async def _one(t: str) -> str:
         async with sem:
@@ -203,6 +203,11 @@ def _validate_args(tool_name: str, args: dict | None) -> dict:
             errors.append("'messages' must be an array")
     elif tool_name == "get_pipeline_status":
         _optional_int("period_hours", min_value=1)
+    elif tool_name in {"set_state", "get_state"}:
+        _require_str("key")
+        _optional_str("namespace")
+        if tool_name == "set_state" and "value" not in args:
+            errors.append("missing required field 'value'")
 
     if errors:
         raise ValueError(f"invalid arguments for {tool_name}: {'; '.join(errors)}")
@@ -324,6 +329,31 @@ async def list_tools() -> list[Tool]:
                 },
             },
         ),
+        Tool(
+            name="set_state",
+            description="Set a deterministic key-value state. No vector search, no LLM. For structured data like trading positions, watchlists, configs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "namespace": {"type": "string", "description": "State namespace, e.g. 'trading', 'config'", "default": "default"},
+                    "key": {"type": "string", "description": "State key, e.g. 'watchlist', 'fund_position'"},
+                    "value": {"description": "Any JSON-serializable value to store"},
+                },
+                "required": ["key", "value"],
+            },
+        ),
+        Tool(
+            name="get_state",
+            description="Get a deterministic key-value state by namespace+key. No vector search.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "namespace": {"type": "string", "description": "State namespace", "default": "default"},
+                    "key": {"type": "string", "description": "State key to retrieve"},
+                },
+                "required": ["key"],
+            },
+        ),
     ]
 
 
@@ -339,6 +369,8 @@ async def call_tool(name: str, arguments: dict | None) -> list[TextContent]:
             "ingest_event",
             "memory_stats",
             "get_pipeline_status",
+            "set_state",
+            "get_state",
         }:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
@@ -360,6 +392,10 @@ async def call_tool(name: str, arguments: dict | None) -> list[TextContent]:
             return await _memory_stats()
         elif name == "get_pipeline_status":
             return await _get_pipeline_status(validated_args)
+        elif name == "set_state":
+            return await _set_state(validated_args)
+        elif name == "get_state":
+            return await _get_state(validated_args)
     except Exception as e:
         logger.exception(f"Error in {name}")
         return [TextContent(type="text", text=f"Error: {type(e).__name__}: {e or 'timeout or empty error'}")]
@@ -379,8 +415,8 @@ async def _save_memory(args: dict) -> list[TextContent]:
         if topic:
             path += f"/{topic.replace(' ', '_').replace('/', '_')}"
 
-    # Async generate L0 abstract
-    summary = await extractor.generate_summary(text)
+    # Phase 1: Use local fallback for L0 summary instead of LLM call
+    summary = _summary_fallback(text)
     vec = await embedding.embed(text, input_type="document")
     
     conn = _STORE_CONN
@@ -414,13 +450,11 @@ async def _search_memory(args: dict) -> list[TextContent]:
     vec = await embedding.embed(query, input_type="query")
     conn = _STORE_CONN
     try:
-        # Pull 2x candidates for reranker
-        candidates = store.hybrid_search(conn, vec, query, top_k=top_k * 2, path_prefix=path_prefix)
+        candidates = store.hybrid_search(conn, vec, query, top_k=top_k, path_prefix=path_prefix)
         if not candidates:
             return [TextContent(type="text", text="No relevant memories found.")]
 
-        # Rerank
-        results = await reranker.rerank(query, candidates, top_k=top_k)
+        results = candidates
 
         lines = []
         for i, r in enumerate(results, 1):
@@ -480,6 +514,7 @@ async def _list_memories(args: dict) -> list[TextContent]:
 
 
 async def _extract_facts(args: dict) -> list[TextContent]:
+    import extractor  # Lazy import: only needed for explicit fact extraction
     text = args["text"].strip()
     if not text:
         return [TextContent(type="text", text="Error: empty text")]
@@ -560,8 +595,9 @@ async def _ingest_event(args: dict) -> list[TextContent]:
     }
 
     init_event_queue(store.DB_PATH)
-    enqueue(store.DB_PATH, event_id, "extractor", payload)
-    enqueue(store.DB_PATH, event_id, "causal", payload)
+    if ENABLE_PIPELINE:
+        enqueue(store.DB_PATH, event_id, "extractor", payload)
+        enqueue(store.DB_PATH, event_id, "causal", payload)
 
     return [TextContent(type="text", text=json.dumps({"event_id": event_id}, ensure_ascii=False))]
 
@@ -594,11 +630,59 @@ async def _get_pipeline_status(args: dict) -> list[TextContent]:
         return [TextContent(type="text", text=f"Error: {e}")]
 
 
+async def _set_state(args: dict) -> list[TextContent]:
+    namespace = args.get("namespace", "default")
+    key = args.get("key", "").strip()
+    if not key:
+        return [TextContent(type="text", text="Error: empty key")]
+    value = args.get("value")
+    try:
+        result = store.set_state(
+            db_path=store.DB_PATH,
+            namespace=namespace,
+            key=key,
+            value=value,
+            modified_by="mcp",
+        )
+        return [TextContent(type="text", text=f"✅ State set: {namespace}/{key} (v{result['version']})")]
+    except Exception as e:
+        logger.exception("Error in set_state")
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+
+async def _get_state(args: dict) -> list[TextContent]:
+    namespace = args.get("namespace", "default")
+    key = args.get("key", "").strip()
+    if not key:
+        return [TextContent(type="text", text="Error: empty key")]
+    try:
+        result = store.get_state(db_path=store.DB_PATH, namespace=namespace, key=key)
+        if result is None:
+            return [TextContent(type="text", text=f"State not found: {namespace}/{key}")]
+        return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
+    except Exception as e:
+        logger.exception("Error in get_state")
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+
 async def main():
     logger.info("Starting Antigravity Memory MCP server (v2)...")
     init_event_queue(store.DB_PATH)
+
+    # Phase 2+3: Ensure new tables exist and migrate causal data
+    store.ensure_hard_state_table(store.DB_PATH)
+    store.ensure_derived_items_table(store.DB_PATH)
+    migrated = store.migrate_causal_to_derived(store.DB_PATH)
+    if migrated > 0:
+        logger.info(f"Phase 3 migration: moved {migrated} causal records to derived_items")
+
+    # Phase 1: Feature flag to disable async pipeline workers
     launcher = WorkerLauncher(db_path=store.DB_PATH, conn=_STORE_CONN)
-    launcher.start()
+    if ENABLE_PIPELINE:
+        launcher.start()
+        logger.info("Pipeline workers ENABLED")
+    else:
+        logger.info("Pipeline workers DISABLED (set ENABLE_PIPELINE=true to enable)")
     try:
         async with stdio_server() as (read_stream, write_stream):
             await app.run(read_stream, write_stream, app.create_initialization_options())

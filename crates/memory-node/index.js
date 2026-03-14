@@ -32,24 +32,24 @@ switch (platform) {
   case 'android':
     switch (arch) {
       case 'arm64':
-        localFileExisted = existsSync(join(__dirname, 'memory-core.android-arm64.node'))
+        localFileExisted = existsSync(join(__dirname, 'sigil.android-arm64.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./memory-core.android-arm64.node')
+            nativeBinding = require('./sigil.android-arm64.node')
           } else {
-            nativeBinding = require('@memory-core/node-android-arm64')
+            nativeBinding = require('@chaoxlabs/sigil-node-android-arm64')
           }
         } catch (e) {
           loadError = e
         }
         break
       case 'arm':
-        localFileExisted = existsSync(join(__dirname, 'memory-core.android-arm-eabi.node'))
+        localFileExisted = existsSync(join(__dirname, 'sigil.android-arm-eabi.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./memory-core.android-arm-eabi.node')
+            nativeBinding = require('./sigil.android-arm-eabi.node')
           } else {
-            nativeBinding = require('@memory-core/node-android-arm-eabi')
+            nativeBinding = require('@chaoxlabs/sigil-node-android-arm-eabi')
           }
         } catch (e) {
           loadError = e
@@ -63,13 +63,13 @@ switch (platform) {
     switch (arch) {
       case 'x64':
         localFileExisted = existsSync(
-          join(__dirname, 'memory-core.win32-x64-msvc.node')
+          join(__dirname, 'sigil.win32-x64-msvc.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./memory-core.win32-x64-msvc.node')
+            nativeBinding = require('./sigil.win32-x64-msvc.node')
           } else {
-            nativeBinding = require('@memory-core/node-win32-x64-msvc')
+            nativeBinding = require('@chaoxlabs/sigil-node-win32-x64-msvc')
           }
         } catch (e) {
           loadError = e
@@ -77,13 +77,13 @@ switch (platform) {
         break
       case 'ia32':
         localFileExisted = existsSync(
-          join(__dirname, 'memory-core.win32-ia32-msvc.node')
+          join(__dirname, 'sigil.win32-ia32-msvc.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./memory-core.win32-ia32-msvc.node')
+            nativeBinding = require('./sigil.win32-ia32-msvc.node')
           } else {
-            nativeBinding = require('@memory-core/node-win32-ia32-msvc')
+            nativeBinding = require('@chaoxlabs/sigil-node-win32-ia32-msvc')
           }
         } catch (e) {
           loadError = e
@@ -91,13 +91,13 @@ switch (platform) {
         break
       case 'arm64':
         localFileExisted = existsSync(
-          join(__dirname, 'memory-core.win32-arm64-msvc.node')
+          join(__dirname, 'sigil.win32-arm64-msvc.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./memory-core.win32-arm64-msvc.node')
+            nativeBinding = require('./sigil.win32-arm64-msvc.node')
           } else {
-            nativeBinding = require('@memory-core/node-win32-arm64-msvc')
+            nativeBinding = require('@chaoxlabs/sigil-node-win32-arm64-msvc')
           }
         } catch (e) {
           loadError = e
@@ -108,23 +108,23 @@ switch (platform) {
     }
     break
   case 'darwin':
-    localFileExisted = existsSync(join(__dirname, 'memory-core.darwin-universal.node'))
+    localFileExisted = existsSync(join(__dirname, 'sigil.darwin-universal.node'))
     try {
       if (localFileExisted) {
-        nativeBinding = require('./memory-core.darwin-universal.node')
+        nativeBinding = require('./sigil.darwin-universal.node')
       } else {
-        nativeBinding = require('@memory-core/node-darwin-universal')
+        nativeBinding = require('@chaoxlabs/sigil-node-darwin-universal')
       }
       break
     } catch {}
     switch (arch) {
       case 'x64':
-        localFileExisted = existsSync(join(__dirname, 'memory-core.darwin-x64.node'))
+        localFileExisted = existsSync(join(__dirname, 'sigil.darwin-x64.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./memory-core.darwin-x64.node')
+            nativeBinding = require('./sigil.darwin-x64.node')
           } else {
-            nativeBinding = require('@memory-core/node-darwin-x64')
+            nativeBinding = require('@chaoxlabs/sigil-node-darwin-x64')
           }
         } catch (e) {
           loadError = e
@@ -132,13 +132,13 @@ switch (platform) {
         break
       case 'arm64':
         localFileExisted = existsSync(
-          join(__dirname, 'memory-core.darwin-arm64.node')
+          join(__dirname, 'sigil.darwin-arm64.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./memory-core.darwin-arm64.node')
+            nativeBinding = require('./sigil.darwin-arm64.node')
           } else {
-            nativeBinding = require('@memory-core/node-darwin-arm64')
+            nativeBinding = require('@chaoxlabs/sigil-node-darwin-arm64')
           }
         } catch (e) {
           loadError = e
@@ -152,12 +152,12 @@ switch (platform) {
     if (arch !== 'x64') {
       throw new Error(`Unsupported architecture on FreeBSD: ${arch}`)
     }
-    localFileExisted = existsSync(join(__dirname, 'memory-core.freebsd-x64.node'))
+    localFileExisted = existsSync(join(__dirname, 'sigil.freebsd-x64.node'))
     try {
       if (localFileExisted) {
-        nativeBinding = require('./memory-core.freebsd-x64.node')
+        nativeBinding = require('./sigil.freebsd-x64.node')
       } else {
-        nativeBinding = require('@memory-core/node-freebsd-x64')
+        nativeBinding = require('@chaoxlabs/sigil-node-freebsd-x64')
       }
     } catch (e) {
       loadError = e
@@ -168,26 +168,26 @@ switch (platform) {
       case 'x64':
         if (isMusl()) {
           localFileExisted = existsSync(
-            join(__dirname, 'memory-core.linux-x64-musl.node')
+            join(__dirname, 'sigil.linux-x64-musl.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./memory-core.linux-x64-musl.node')
+              nativeBinding = require('./sigil.linux-x64-musl.node')
             } else {
-              nativeBinding = require('@memory-core/node-linux-x64-musl')
+              nativeBinding = require('@chaoxlabs/sigil-node-linux-x64-musl')
             }
           } catch (e) {
             loadError = e
           }
         } else {
           localFileExisted = existsSync(
-            join(__dirname, 'memory-core.linux-x64-gnu.node')
+            join(__dirname, 'sigil.linux-x64-gnu.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./memory-core.linux-x64-gnu.node')
+              nativeBinding = require('./sigil.linux-x64-gnu.node')
             } else {
-              nativeBinding = require('@memory-core/node-linux-x64-gnu')
+              nativeBinding = require('@chaoxlabs/sigil-node-linux-x64-gnu')
             }
           } catch (e) {
             loadError = e
@@ -197,26 +197,26 @@ switch (platform) {
       case 'arm64':
         if (isMusl()) {
           localFileExisted = existsSync(
-            join(__dirname, 'memory-core.linux-arm64-musl.node')
+            join(__dirname, 'sigil.linux-arm64-musl.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./memory-core.linux-arm64-musl.node')
+              nativeBinding = require('./sigil.linux-arm64-musl.node')
             } else {
-              nativeBinding = require('@memory-core/node-linux-arm64-musl')
+              nativeBinding = require('@chaoxlabs/sigil-node-linux-arm64-musl')
             }
           } catch (e) {
             loadError = e
           }
         } else {
           localFileExisted = existsSync(
-            join(__dirname, 'memory-core.linux-arm64-gnu.node')
+            join(__dirname, 'sigil.linux-arm64-gnu.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./memory-core.linux-arm64-gnu.node')
+              nativeBinding = require('./sigil.linux-arm64-gnu.node')
             } else {
-              nativeBinding = require('@memory-core/node-linux-arm64-gnu')
+              nativeBinding = require('@chaoxlabs/sigil-node-linux-arm64-gnu')
             }
           } catch (e) {
             loadError = e
@@ -226,26 +226,26 @@ switch (platform) {
       case 'arm':
         if (isMusl()) {
           localFileExisted = existsSync(
-            join(__dirname, 'memory-core.linux-arm-musleabihf.node')
+            join(__dirname, 'sigil.linux-arm-musleabihf.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./memory-core.linux-arm-musleabihf.node')
+              nativeBinding = require('./sigil.linux-arm-musleabihf.node')
             } else {
-              nativeBinding = require('@memory-core/node-linux-arm-musleabihf')
+              nativeBinding = require('@chaoxlabs/sigil-node-linux-arm-musleabihf')
             }
           } catch (e) {
             loadError = e
           }
         } else {
           localFileExisted = existsSync(
-            join(__dirname, 'memory-core.linux-arm-gnueabihf.node')
+            join(__dirname, 'sigil.linux-arm-gnueabihf.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./memory-core.linux-arm-gnueabihf.node')
+              nativeBinding = require('./sigil.linux-arm-gnueabihf.node')
             } else {
-              nativeBinding = require('@memory-core/node-linux-arm-gnueabihf')
+              nativeBinding = require('@chaoxlabs/sigil-node-linux-arm-gnueabihf')
             }
           } catch (e) {
             loadError = e
@@ -255,26 +255,26 @@ switch (platform) {
       case 'riscv64':
         if (isMusl()) {
           localFileExisted = existsSync(
-            join(__dirname, 'memory-core.linux-riscv64-musl.node')
+            join(__dirname, 'sigil.linux-riscv64-musl.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./memory-core.linux-riscv64-musl.node')
+              nativeBinding = require('./sigil.linux-riscv64-musl.node')
             } else {
-              nativeBinding = require('@memory-core/node-linux-riscv64-musl')
+              nativeBinding = require('@chaoxlabs/sigil-node-linux-riscv64-musl')
             }
           } catch (e) {
             loadError = e
           }
         } else {
           localFileExisted = existsSync(
-            join(__dirname, 'memory-core.linux-riscv64-gnu.node')
+            join(__dirname, 'sigil.linux-riscv64-gnu.node')
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./memory-core.linux-riscv64-gnu.node')
+              nativeBinding = require('./sigil.linux-riscv64-gnu.node')
             } else {
-              nativeBinding = require('@memory-core/node-linux-riscv64-gnu')
+              nativeBinding = require('@chaoxlabs/sigil-node-linux-riscv64-gnu')
             }
           } catch (e) {
             loadError = e
@@ -283,13 +283,13 @@ switch (platform) {
         break
       case 's390x':
         localFileExisted = existsSync(
-          join(__dirname, 'memory-core.linux-s390x-gnu.node')
+          join(__dirname, 'sigil.linux-s390x-gnu.node')
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./memory-core.linux-s390x-gnu.node')
+            nativeBinding = require('./sigil.linux-s390x-gnu.node')
           } else {
-            nativeBinding = require('@memory-core/node-linux-s390x-gnu')
+            nativeBinding = require('@chaoxlabs/sigil-node-linux-s390x-gnu')
           }
         } catch (e) {
           loadError = e

@@ -66,20 +66,18 @@ class DistillerWorker(BaseWorker):
 
     async def process(self, payload: dict[str, Any]) -> None:
         _ = payload
-        count = store.count_memories_by_source(
+        count = store.count_derived_by_source(
             self.db_path,
             source="causal",
             path_prefix="/behavior/corrections",
-            include_archived=False,
         )
         if count < 5:
             return
 
-        causal_memories = store.list_memories_by_source(
+        causal_memories = store.list_derived_by_source(
             self.db_path,
             source="causal",
             path_prefix="/behavior/corrections",
-            include_archived=False,
             limit=2000,
         )
         if len(causal_memories) < 5:

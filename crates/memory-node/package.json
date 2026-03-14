@@ -1,28 +1,47 @@
 {
-    "name": "@memory-core/node",
-    "version": "0.1.0",
-    "description": "High-performance memory storage & hybrid search engine (Rust native module)",
-    "main": "index.js",
-    "types": "index.d.ts",
-    "napi": {
-        "name": "memory-core",
-        "triples": {
-            "defaults": true
-        }
-    },
-    "scripts": {
-        "build": "napi build --platform --release --cargo-cwd .",
-        "build:debug": "napi build --platform --cargo-cwd .",
-        "artifacts": "napi artifacts",
-        "prepublishOnly": "napi prepublish -t npm"
-    },
-    "devDependencies": {
-        "@napi-rs/cli": "^2"
-    },
-    "license": "MIT",
-    "files": [
-        "index.js",
-        "index.d.ts",
-        "*.node"
-    ]
+  "name": "@chaoxlabs/sigil-node",
+  "version": "0.1.0",
+  "description": "High-performance memory storage & hybrid search engine (Rust native module)",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs",
+      "require": "./index.js"
+    }
+  },
+  "napi": {
+    "name": "sigil",
+    "triples": {
+      "defaults": true
+    }
+  },
+  "scripts": {
+    "build": "napi build --platform --release --cargo-cwd .",
+    "build:debug": "napi build --platform --cargo-cwd .",
+    "artifacts": "napi artifacts",
+    "prepublishOnly": "napi prepublish -t npm"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/nicekid1/Sigil",
+  "homepage": "https://github.com/nicekid1/Sigil",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "files": [
+    "index.js",
+    "index.mjs",
+    "index.d.ts",
+    "*.node"
+  ],
+  "optionalDependencies": {
+    "@chaoxlabs/sigil-node-win32-x64-msvc": "0.1.0",
+    "@chaoxlabs/sigil-node-darwin-x64": "0.1.0",
+    "@chaoxlabs/sigil-node-linux-x64-gnu": "0.1.0"
+  }
 }
