@@ -101,20 +101,20 @@ Sigil 支持以外部扩展插件的形式桥接运行于 OpenClaw 内核。
 
 - **⚡ 高性能 Rust 内核 (`memory-core`)**：计分、存储、实体提取与检索等底层引擎完全由 Rust 实现，并为 Node.js (`NAPI-RS`) 和 Python (`PyO3`) 提供原生高性能绑定。
 - **🗂️ 文件系统命名空间**：记忆信息摒弃扁平存储，采用 `path` 路径参数（如 `/user/preferences`, `/project/architecture`）进行拓扑层级管理，有效实现业务数据的隔离与精准定向。
-- **🔍 四通道混合搜索引擎**：
+- **🔍 三通道分流检索引擎**：
   - **语义级（Semantic）**：内建基于 `sqlite-vec` 的 Voyage-4 向量聚类查询（KNN）。
   - **词法级（Lexical）**：基于 `libsimple` 和 `FTS5` 构建优化的 CJK（中日韩文）全文索引库。
-  - **符号级（Symbolic）**：精准的关键字匹配与分类标签查询。
   - **遗忘曲线（Decay）**：借鉴 ACT-R 经典认知模型的时间惩罚衰减机制。
-- **🎯 交叉重排（Reranking）**：在四个检索通道输出候选后，系统自动调用 Voyage Rerank-2.5 交叉编码器进行深度重排，最大化命中精度。
-- **🧠 三级自适应上下文分层**：数据接入时将自动被提纯为三个深度：`L0`（摘要提要）, `L1`（段落概览）, 与 `L2`（完整内容）。Agent 可根据当前操作紧急度选取最低成本的维度读取。
-- **🔌 零外部依赖部署**：所有数据被安全封装于单一的 SQLite 原生文件库（`memory.db`）中。无需部署 Redis、Neo4j 或 ChromaDB 等中间组件。
+- **🔒 强状态隔离**：引入了确定性并独立于向量的强状态 `hard_state` KV 引擎，适合存放监视清单、明确仓位等避免幻觉影响的事务。
+- **🧠 三级自适应上下文分层**：数据接入时将自动被提纯为三个深度：`L0`（摘要提要）, `L1`（段落概览）, 与 `L2`（完整内容）。
+- **🔄 两阶演化（记忆去重）**：首创基于数学相似度阈值的 `HARD_SKIP` 与 `EVOLVE` 两阶段查重去重算法。
+- **🔌 零外部依赖部署**：所有引擎与数据层级合并于微小的 `memory.db` (SQLite) 架构之上，不需要外部建立如 Neo4j 或者向量库等独立服务。
 
 ---
 
 ## ⚙️ 因果工作台与记忆关联
 
-为保证 Agent 系统级别的长期逻辑稳定性，Sigil 引入了深度推理组件：
+为保证 Agent 系统级别的长期逻辑稳定性，Sigil 引入了深度推理组件（注：为减小资源消耗提升极速响应，这些重型处理模型管道已**默认禁用**，可配置环境变量 `ENABLE_PIPELINE=true` 激活）：
 
 ### 1. 结构化因果提取管道 (The Causal Extraction Pipeline)
 当 Agent 完成一轮复杂交互后，Sigil 的完全异步工作站将被唤醒。利用通过 SiliconFlow 接入的 **Qwen3.5-27B** 模型，工具站将解构 Agent 的日志并提取：
@@ -123,10 +123,8 @@ Sigil 支持以外部扩展插件的形式桥接运行于 OpenClaw 内核。
 *   `Results`：落地的具体结果状态。
 *   `Impacts`：对空间可能存在的前置及后置波及影响。
 
-有效防范“AI 失忆症”，让 Agent 记住制定架构变更背后的宏观逻辑，而非仅仅是局部的代码改动点。
-
-### 2. 原生记忆关联拓扑 (Memory Relations)
-底层存储层通过图谱数据模型隐式链接独立的事实卡片。这一设计使得 LLM 能够平滑顺藤摸瓜地回溯整个依赖架构与历史背景，而不会使得单次请求超过有限的 Token 支持上限。
+### 2. 万法归里（原生物理隔离）
+那些经由管线推断出的因果记忆以及被蒸馏器提取的经验，将被统一迁移隔离到绝对绝缘的 `derived_items` 表。这样即可免去任何大模型的“自我想象”不慎污染了主体记忆真库 `memories` 发生历史重叠的致命缺陷。
 
 ---
 
@@ -185,10 +183,9 @@ graph TD
 
 | 职位角色 | 推荐选用方案 | 原理说明 |
 |------|-------------------|------------------|
-| **特征向量 (Embedding)** | [Voyage-4](https://voyageai.com/) | 1024 高维度向量输出，提供领先的多语种文本检索能力。 |
-| **打分重排 (Reranking)** | [Voyage Rerank-2.5](https://voyageai.com/) | 检索引擎初筛后的深度交叉验证，共用 Voyage 密钥环境。 |
-| **逻辑提取与快摄 (Extraction & Summarization)** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) 分片部署 | 面向高精度 JSON 数据集校验、L0 简要提取提供的强大因果推理能力。 |
-| **全局蒸馏 (Distillation)** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) 分片部署 | 用于梳理高层级跨场景行为图谱及全局规则统一沉淀。 |
+| **特征向量 (Embedding)** | [Voyage-4](https://voyageai.com/) | 1024 高维度向量输出，提供领先的多语种文本检索能力。与 Rust 执行核心直连。 |
+| **逻辑提取与快摄 (Extraction & Summarization)** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) 分片部署 | 面向高精度 JSON 数据集校验、L0 简要提取提供的强大因果推理能力。（仅启用 `ENABLE_PIPELINE=true` 时加载） |
+| **全局蒸馏 (Distillation)** | [Qwen3.5-27B](https://cloud.siliconflow.cn/i/QwFqsLF1) 分片部署 | 用于梳理高层级跨场景行为图谱及全局规则统一沉淀。（同上） |
 
 ---
 
@@ -198,28 +195,30 @@ graph TD
 
 ### ⚙️ Python Environment (`mcp/server.py` 示例)
 ```python
-from memory_core_py import MemoryStore, SearchParams, MemoryEntry
+from mcp.server.stdio import stdio_server
+# ... (作为 MCP 环境标准连接)
 
-# 初始化持久化存储节点
-store = MemoryStore("~/.sigil/memory.db")
-
-# 写入结构化知识与关系
-store.save_memory(MemoryEntry(
+# 1. 写入结构化软记忆 (Vector + FTS + Time-衰减，异步摘要)
+save_memory(
     text="前端项目强制使用 React 与 Vite 构建，严禁混入 Webpack 相关生态配置。支持 Tailwind。",
     path="/user/project_preferences",
     importance=0.8,
     keywords=["react", "vite", "webpack", "tailwind"]
-))
+)
 
-# 调用原生多路混合检索
-results = store._search(SearchParams(
+# 2. 调用原生多路混合检索
+results = search_memory(
     query="针对当前工程构建工具的禁忌有哪些？",
     path_prefix="/user",
     top_k=3
-))
+)
 
-# 输出提纯后的精简概要版本
-print(results[0].l0_summary)
+# 3. 强一致性硬状态存储 (0 向量感知，极简 KV 持久化)
+set_state(
+    namespace="trading",
+    key="watchlist",
+    value={"600089": "TBEA", "688256": "Cambricon"}
+)
 ```
 
 ### ⚙️ 环境变量配置 (`.env`)

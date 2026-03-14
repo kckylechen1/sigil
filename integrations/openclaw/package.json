@@ -1,6 +1,6 @@
 {
   "name": "memory-hybrid-bridge",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "OpenClaw lifecycle plugin for hybrid memory bridge",
   "type": "module",
@@ -18,7 +18,7 @@
     "postinstall": "node --input-type=module -e \"import('@chaoxlabs/sigil-node').then(m => console.log('✓ native module OK')).catch(e => { console.error('✗ native module failed:', e.message); process.exit(1) })\""
   },
   "dependencies": {
-    "@chaoxlabs/sigil-node": "^0.1.0",
+    "@chaoxlabs/sigil-node": "^0.3.0",
     "@sinclair/typebox": "^0.34.48"
   },
   "devDependencies": {

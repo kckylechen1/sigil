@@ -101,20 +101,20 @@ Please install the Sigil memory extension for OpenClaw:
 
 - **⚡ High-Performance Rust Core (`memory-core`)**: The foundational scoring, storage, entity extraction, and retrieval engines are written in Rust, featuring dynamic bindings for Node.js (`NAPI-RS`) and Python (`PyO3`).
 - **🗂️ Filesystem Paradigm**: Context is managed hierarchically via a `path` parameter (e.g., `/user/preferences`, `/project/architecture`), allowing precise isolation and contextual scoping.
-- **🔍 4-Channel Hybrid Search Engine**:
+- **🔍 3-Channel Hybrid Search Engine**:
   - **Semantic**: Built-in vector embedding search via `sqlite-vec` (KNN).
   - **Lexical**: Native CJK-optimized full-text search utilizing `libsimple` and `FTS5`.
-  - **Symbolic**: Exact keyword and categorical entity matching.
   - **Decay**: Temporal relevance degradation inspired by the ACT-R cognitive architecture.
-- **🎯 Cross-Encoder Reranking**: Applies advanced reranking top of candidate sets to maximize retrieval precision.
+- **🔒 Hard State Engine**: Introduced a deterministic Key-Value store independent of vector memory. Useful for tracking trading watchlists or rigid state.
 - **🧠 3-Tier Context Extraction**: Automatically parses ingestion into three tiers: `L0` (Abstract Summary), `L1` (Overview), and `L2` (Full Text). Agents dynamically retrieve the appropriate depth based on context constraints.
-- **🔌 Embedded Architecture**: All data is efficiently stored within a single SQLite file (`memory.db`). No external services (Redis, Neo4j, ChromaDB) are required.
+- **🔄 Evolution deduplication**: Utilizing math-based similarities for `HARD_SKIP` and `EVOLVE` updates.
+- **🔌 Embedded Architecture**: All data is efficiently stored within a single SQLite file (`memory.db`), with AI logic fully operated locally. No external databases required.
 
 ---
 
 ## ⚙️ Causal Worker Pipeline & Memory Relations
 
-Sigil incorporates advanced reasoning components to maintain long-term logical consistency:
+Sigil incorporates advanced reasoning components to maintain long-term logical consistency (Note: this pipeline is **disabled by default** to prioritize latency; enable it with `ENABLE_PIPELINE=true`):
 
 ### 1. The Causal Extraction Pipeline
 When an agent submits execution logs, an asynchronous worker utilizes **Qwen3.5-27B** via SiliconFlow to analyze the interaction and extract:
@@ -123,10 +123,8 @@ When an agent submits execution logs, an asynchronous worker utilizes **Qwen3.5-
 *   `Results`: The concrete outcomes.
 *   `Impacts`: Long-term consequences within the workspace.
 
-This prevents "Agent Amnesia," ensuring agents retain the rationale behind historical decisions rather than just the resultant code changes.
-
-### 2. Native Memory Relations
-The storage layer implicitly links connected entities and facts into a native topological graph. This allows language models to traverse dependencies and understand inherited context without expanding the primary context window.
+### 2. Derived Isolation
+Both causal derivations and distilled rules are physically isolated within a dedicated `derived_items` table, keeping the primary memory layers pure and intact from automated AI-inferred hallucinations.
 
 ---
 
@@ -186,9 +184,8 @@ The following model stack is optimized to balance latency, quality, and cost for
 | Role | Recommended Model | Rationale |
 |------|-------------------|------------------|
 | **Embedding** | [Voyage-4](https://voyageai.com/) | 1024d vectors offering top-tier multilingual retrieval capabilities. |
-| **Reranking** | [Voyage Rerank-2.5](https://voyageai.com/) | Cross-encoder precision boost applied post-retrieval. Shares API key with embedding. |
-| **Extraction & Summarization** | [Qwen3.5-27B](https://cloud.siliconflow.cn/) (SiliconFlow) | High accuracy for structured JSON parsing, causal reasoning, and L0 fast-summarization. |
-| **Distillation** | [Qwen3.5-27B](https://cloud.siliconflow.cn/) (SiliconFlow) | Unified model implementation for periodic global schema and rule derivation. |
+| **Extraction & Summarization** | [Qwen3.5-27B](https://cloud.siliconflow.cn/) (SiliconFlow) | High accuracy for structured JSON parsing and L0 fast-summarization. (Requires `ENABLE_PIPELINE=true`) |
+| **Distillation** | [Qwen3.5-27B](https://cloud.siliconflow.cn/) (SiliconFlow) | Unified model implementation for periodic global schema logic. (Same as above) |
 
 ---
 
@@ -198,28 +195,30 @@ For direct integration of `memory-core` into custom Python applications:
 
 ### ⚙️ Python Environment (`mcp/server.py`)
 ```python
-from memory_core_py import MemoryStore, SearchParams, MemoryEntry
+from mcp.server.stdio import stdio_server
+# ... (using MCP client communication)
 
-# Initialize embedded store
-store = MemoryStore("~/.sigil/memory.db")
-
-# Ingest structured memory
-store.save_memory(MemoryEntry(
+# 1. Ingest structured soft memory
+save_memory(
     text="The user prefers React frontend with Vite, no Webpack. Tailwind is permitted.",
     path="/user/project_preferences",
     importance=0.8,
     keywords=["react", "vite", "webpack", "tailwind"]
-))
+)
 
-# Execute multi-channel Hybrid Search
-results = store._search(SearchParams(
+# 2. Execute multi-channel Hybrid Search
+results = search_memory(
     query="What is the preferred bundler?",
     path_prefix="/user",
     top_k=3
-))
+)
 
-# Access optimized tier
-print(results[0].l0_summary)
+# 3. Save Hard State (0 embedding, deterministic KV)
+set_state(
+    namespace="trading",
+    key="watchlist",
+    value={"600089": "TBEA", "688256": "Cambricon"}
+)
 ```
 
 ### ⚙️ Environment Configuration (`.env`)
