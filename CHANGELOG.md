@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-14
+
+### Added
+- **Core/MCP**: Introduced `hard_state` table and corresponding `set_state` / `get_state` endpoints to store rigid KV data distinct from semantic mappings. This resolves data hallucination for strict key values like dynamic watchlists.
+- **MCP/Workers**: Created `derived_items` table explicitly isolating Causal logic and Distillation outputs from primary empirical facts, drastically improving search relevancy.
+- **Server**: Implemented `ENABLE_PIPELINE` logic (defaulting to false) to toggle the background asynchronous extraction process on demand to maximize pure querying speeds.
+
+### Changed
+- **Pipeline**: Shifted event extraction process to lazy-execution triggered under the background thread pool queue. 
+- **Core/MCP**: Removed all LLM-based abstract summarization fallback functions from standard `save_memory` path to bypass latency delays.
+
+### Removed
+- **MCP**: Eliminated `Voyage-Rerank-2.5` dependency from standard hybrid searches. Core Rust pipeline handles similarity filtering accurately enough, boosting response time natively via KNN & FTS5 mechanisms alone.
+- **Scrap**: Cleaned up legacy unmaintained prototype directories `memory-mcp/` and `memory-core-rs/` from local `scratch` areas.
+
 ## [0.2.1] - 2026-03-13
 
 ### Fixed
